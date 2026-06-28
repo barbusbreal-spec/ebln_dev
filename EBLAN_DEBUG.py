@@ -6613,14 +6613,11 @@ class CalculatorDialog(QDialog):
 #   Своя стартовая страница с анимированными «обоями».
 #   Кнопки — ссылки eblan:<cmd>, перехватываются EblanPage.
 # ============================================================
-def eblan_start_page_html(balance=0, gaming_on=False, rot_level=0, boost_on=False):
+def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
     gaming_label = "🎮 Гейминг: ВКЛ" if gaming_on else "🎮 Гейминг-режим"
     gaming_cls = "btn primary on" if gaming_on else "btn primary"
     boost_badge = ('<span class="chip ok">⚡ EblanBoost ×1488</span>' if boost_on else "")
     rot_note = ""
-    if rot_level > 0:
-        rot_note = (f'<div class="rot">⚠️ Целостность сборки снижена на {rot_level}/12 '
-                    f'— восстановите в разделе «Слоты».</div>')
 
     def tile(href, icon, title, sub):
         return (f'<a class="tile" href="{href}">'
@@ -6629,10 +6626,10 @@ def eblan_start_page_html(balance=0, gaming_on=False, rot_level=0, boost_on=Fals
 
     tiles = "".join([
         tile("eblan:shop", "🛒", "Магазин", "функции за Еблан Кеш"),
-        tile("eblan:slots", "🎰", "Слоты", "испытай удачу"),
+        tile("eblan:steam2", "🎮", "Steam 2", "крутые игры"),
+        tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
         tile("eblan:cheats", "🧩", "Читы", "панель кодов"),
         tile("eblan:keygen", "🔑", "Keygen", "ключи WinRAR"),
-        tile("eblan:boost", "⚡", "EblanBoost™", "ускорение ×777"),
         tile("eblan:cert", "🛡️", "Сертификаты", "Минцифры · Еблан Секьюр"),
     ])
 
@@ -6774,190 +6771,6 @@ class EblanPage(QWebEnginePage):
         return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 
-class RotOverlay(QWidget):
-    """«Гниль» поверх контента: тёмно-зелёные пятна/трещины. Клик-сквозной.
-
-    Интенсивность растёт с rot_level. Лечится выигрышем в слотах.
-    """
-
-    def __init__(self, parent, level=1):
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.level = max(1, int(level))
-        self._spots = []
-        self._rebuild()
-
-    def set_level(self, level):
-        self.level = max(0, int(level))
-        self._rebuild()
-        self.update()
-
-    def _rebuild(self):
-        import random as _r
-        _r.seed(1337)  # стабильный узор, не мерцает
-        w = max(self.width(), 800); h = max(self.height(), 600)
-        self._spots = []
-        for _ in range(self.level * 14):
-            self._spots.append((
-                _r.randint(0, w), _r.randint(0, h),
-                _r.randint(20, 90),
-                _r.choice([(40, 70, 20), (60, 80, 25), (30, 50, 15), (70, 60, 20)]),
-            ))
-
-    def paintEvent(self, event):
-        try:
-            p = QPainter(self)
-            p.setRenderHint(QPainter.RenderHint.Antialiasing)
-            alpha = min(230, 60 + self.level * 18)
-            for x, y, rad, (cr, cg, cb) in self._spots:
-                p.setBrush(QColor(cr, cg, cb, alpha))
-                p.setPen(Qt.PenStyle.NoPen)
-                p.drawEllipse(x - rad, y - rad, rad * 2, rad * 2)
-            if self.level >= 10:
-                p.setPen(QColor(120, 200, 60))
-                f = QFont(); f.setPointSize(34); f.setBold(True); p.setFont(f)
-                p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤮 БРАУЗЕР СГНИЛ 🤮")
-            p.end()
-        except Exception:
-            pass
-
-
-class SlotsDialog(QDialog):
-    """Слоты на Еблан Кеш. Проигрыш в форс-режиме гноит браузер."""
-
-    SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "🐐", "💀"]
-
-    def __init__(self, main_window, forced=False, *args, **kwargs):
-        super().__init__(main_window, *args, **kwargs)
-        self.mw = main_window
-        self.forced = forced
-        self._played = False
-        self._spinning = False
-        self.setWindowTitle("🎰 Слоты EBLAN" + (" — ОБЯЗАТЕЛЬНО" if forced else ""))
-        self.setMinimumWidth(360)
-
-        root = QVBoxLayout(self)
-
-        if forced:
-            warn = QLabel("⏰ Время крутить! Проиграешь — браузер сгниёт. 🤮")
-            warn.setStyleSheet("color:#e0245e; font-weight:800;")
-            warn.setWordWrap(True)
-            root.addWidget(warn)
-
-        self.reels = QLabel("🎰 🎰 🎰")
-        self.reels.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        rf = self.reels.font(); rf.setPointSize(48); self.reels.setFont(rf)
-        root.addWidget(self.reels)
-
-        self.info = QLabel()
-        self.info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(self.info)
-
-        bet_row = QHBoxLayout()
-        bet_row.addWidget(QLabel("Ставка:"))
-        self.bet_input = QSpinBox()
-        self.bet_input.setRange(0, 100000)
-        self.bet_input.setValue(self._forced_bet() if forced else 10)
-        if forced:
-            self.bet_input.setEnabled(False)
-        bet_row.addWidget(self.bet_input)
-        root.addLayout(bet_row)
-
-        self.spin_btn = QPushButton("КРУТИТЬ 🎰")
-        self.spin_btn.clicked.connect(self._spin)
-        root.addWidget(self.spin_btn)
-
-        self._refresh_info()
-
-    def _forced_bet(self):
-        bal = int(getattr(self.mw, "eblan_cash", 0))
-        return max(0, min(50, bal))
-
-    def _refresh_info(self):
-        self.info.setText(
-            f"💰 Баланс: {int(self.mw.eblan_cash)} · "
-            f"7️⃣7️⃣7️⃣ = x67 · 🐐🐐🐐 = x30 · три в ряд = x10 · пара = x3"
-        )
-
-    def _spin(self):
-        if self._spinning:
-            return
-        bet = int(self.bet_input.value())
-        if bet > int(self.mw.eblan_cash):
-            self.info.setText("Не хватает Еблан Кеш на ставку 🗿")
-            return
-        if bet > 0:
-            self.mw.spend_cash(bet)
-        self._spinning = True
-        self.spin_btn.setEnabled(False)
-
-        self._ticks = 0
-        self._anim = QTimer(self)
-        self._anim.timeout.connect(lambda: self._spin_step(bet))
-        self._anim.start(80)
-
-    def _spin_step(self, bet):
-        self._ticks += 1
-        r = [random.choice(self.SYMBOLS) for _ in range(3)]
-        self.reels.setText("  ".join(r))
-        if self._ticks >= 14:
-            self._anim.stop()
-            self._settle(r, bet)
-
-    def _settle(self, r, bet):
-        self._spinning = False
-        self._played = True
-        self.spin_btn.setEnabled(True)
-
-        if r[0] == r[1] == r[2]:
-            if r[0] == "7️⃣":
-                mult = 67
-            elif r[0] == "🐐":
-                mult = 30
-            else:
-                mult = 10
-        elif r[0] == r[1] or r[1] == r[2] or r[0] == r[2]:
-            mult = 3
-        else:
-            mult = 0
-
-        win = bet * mult
-        if win > 0:
-            self.mw.add_cash(win, "🎰 Выигрыш")
-            self.info.setText(f"🎉 ВЫИГРЫШ x{mult} = +{win} Еблан Кеш!")
-            try:
-                self.mw.zoomer_burst("🎰 JACKPOT 🎉" if mult >= 30 else "🎰 занос!")
-                self.mw.heal_rot(1)  # выигрыш чуть лечит гниль
-            except Exception:
-                pass
-        else:
-            self.info.setText("💀 Проигрыш. Кеш сгорел.")
-            if self.forced:
-                try:
-                    self.mw.rot_browser(1)  # проигрыш в форс-слоте гноит браузер
-                except Exception:
-                    pass
-        self._refresh_info()
-        if self.forced:
-            self.spin_btn.setText("Закрыть")
-            self.spin_btn.clicked.disconnect()
-            self.spin_btn.clicked.connect(self.accept)
-
-    def closeEvent(self, event):
-        # В форс-режиме нельзя сбежать не крутанув — закрытие = принудительный спин.
-        if self.forced and not self._played and not self._spinning:
-            event.ignore()
-            self._spin()
-            return
-        super().closeEvent(event)
-
-    def reject(self):
-        if self.forced and not self._played and not self._spinning:
-            self._spin()
-            return
-        super().reject()
-
-
 class CertDialog(QDialog):
     """Косметические «сертификаты» Минцифры / Еблан Секьюр.
 
@@ -7059,7 +6872,6 @@ class CheatsDialog(QDialog):
 
     CODES = {
         "idkfa":     ("💰 +9999 Еблан Кеш", "cash"),
-        "iddqd":     ("🛡️ Снять всю гниль браузера", "unrot"),
         "rosebud":   ("✨ +100000 ауры", "aura"),
         "allunlock": ("🔓 Разблокировать все функции магазина", "unlock"),
         "hesoyam":   ("🎁 Всё сразу", "all"),
@@ -7118,10 +6930,6 @@ class CheatsDialog(QDialog):
                 if fid not in self.mw.unlocked_features:
                     self.mw.unlocked_features.append(fid)
             done.append("всё разблокировано")
-        if act in ("unrot", "all"):
-            try: self.mw.heal_rot(99)
-            except Exception: pass
-            done.append("гниль снята")
         self.mw.save_settings()
         self.status.setStyleSheet("color:#3fb950; font-weight:600;")
         self.status.setText("✅ Чит активирован: " + ", ".join(done))
@@ -7129,6 +6937,180 @@ class CheatsDialog(QDialog):
             self.mw.zoomer_burst("🧩 ЧИТ АКТИВИРОВАН 😎")
         except Exception:
             pass
+
+
+class VibeCodeDialog(QDialog):
+    """Режим вайбкода: ИИ-агент + терминал.
+
+    ИИ (тот же Mistral, что и встроенный EBLAN AI) выступает кодинг-агентом:
+    отвечает командами/кодом. Команды выполняются в терминале ниже по кнопке
+    «Запустить» — выполнение видимое и инициируется пользователем.
+    """
+
+    _ai_done = pyqtSignal(str)
+    _cmd_done = pyqtSignal(str)
+
+    SYSTEM_PROMPT = (
+        "Ты EblanCoder — кодинг-агент для вайбкода в браузере EBLAN. "
+        "Помогаешь писать и запускать код. Когда нужна команда терминала — "
+        "давай ОДНУ команду в блоке ```sh ... ```. Отвечай кратко, по-русски."
+    )
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🤖 Режим вайбкода — ИИ-агент + терминал")
+        self.setMinimumSize(720, 600)
+
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel("Спроси агента — он накидает код/команды. Команды запускаешь ты, в терминале."))
+
+        # --- ИИ ---
+        self.ai_log = QPlainTextEdit(); self.ai_log.setReadOnly(True)
+        self.ai_log.setPlaceholderText("ответы EblanCoder появятся тут…")
+        root.addWidget(self.ai_log, 1)
+        ai_row = QHBoxLayout()
+        self.ai_in = QLineEdit(); self.ai_in.setPlaceholderText("опиши, что вайбкодим…")
+        self.ai_in.returnPressed.connect(self._ask)
+        ask = QPushButton("Спросить 🤖"); ask.clicked.connect(self._ask)
+        ai_row.addWidget(self.ai_in, 1); ai_row.addWidget(ask)
+        root.addLayout(ai_row)
+
+        # --- Терминал ---
+        root.addWidget(QLabel("Терминал:"))
+        self.term = QPlainTextEdit(); self.term.setReadOnly(True)
+        self.term.setStyleSheet("background:#0b0d11; color:#7CFC00; font-family:'Courier New',monospace;")
+        root.addWidget(self.term, 1)
+        t_row = QHBoxLayout()
+        self.cmd_in = QLineEdit(); self.cmd_in.setPlaceholderText("команда…")
+        self.cmd_in.setStyleSheet("font-family:'Courier New',monospace;")
+        self.cmd_in.returnPressed.connect(self._run_cmd)
+        run = QPushButton("Запустить ▶"); run.clicked.connect(self._run_cmd)
+        t_row.addWidget(self.cmd_in, 1); t_row.addWidget(run)
+        root.addLayout(t_row)
+
+        self._ai_done.connect(self._on_ai)
+        self._cmd_done.connect(lambda out: self.term.appendPlainText(out))
+
+    # ---- ИИ ----
+    def _ask(self):
+        q = self.ai_in.text().strip()
+        if not q:
+            return
+        self.ai_in.clear()
+        self.ai_log.appendPlainText(f"› {q}")
+        server = getattr(self.mw, "ai_server", "https://api.mistral.ai/v1/chat/completions")
+        key = getattr(self.mw, "ai_key", "")
+        model = getattr(self.mw, "ai_model", "mistral-large-2512")
+
+        def work():
+            try:
+                r = requests.post(
+                    server,
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={"model": model, "messages": [
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "user", "content": q},
+                    ], "max_tokens": 700, "temperature": 0.6},
+                    timeout=40,
+                )
+                data = r.json()
+                self._ai_done.emit(data["choices"][0]["message"]["content"].strip())
+            except Exception as e:
+                self._ai_done.emit(f"[ошибка ИИ: {e}]")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_ai(self, text):
+        self.ai_log.appendPlainText(f"🤖 {text}\n")
+        # Выдёргиваем команду из ```sh ...``` и подставляем в терминал.
+        m = re.search(r"```(?:sh|bash|shell)?\s*(.+?)```", text, re.S)
+        if m:
+            cmd = m.group(1).strip().splitlines()[0].strip()
+            self.cmd_in.setText(cmd)
+
+    # ---- Терминал ----
+    def _run_cmd(self):
+        cmd = self.cmd_in.text().strip()
+        if not cmd:
+            return
+        self.cmd_in.clear()
+        self.term.appendPlainText(f"$ {cmd}")
+
+        def work():
+            try:
+                p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+                out = (p.stdout or "") + (p.stderr or "")
+                self._cmd_done.emit(out.rstrip() or "(нет вывода)")
+            except Exception as e:
+                self._cmd_done.emit(f"[ошибка: {e}]")
+        threading.Thread(target=work, daemon=True).start()
+
+
+class BlindOverlay(QWidget):
+    """Режим слепого: чёрный экран на всё окно с надписью. Выход — ESC."""
+
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.mw = main_window
+        self.setStyleSheet("background:#000;")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key.Key_Escape:
+            self.mw.set_blind_mode(False)
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(0, 0, 0))
+            p.setPen(QColor(230, 230, 230))
+            f = QFont(); f.setPointSize(34); f.setBold(True); p.setFont(f)
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                       "ТЫ СЛЕПОЙ 🦯\nнахуя тебе браузер?")
+            f2 = QFont(); f2.setPointSize(12); p.setFont(f2)
+            p.setPen(QColor(120, 120, 120))
+            p.drawText(self.rect().adjusted(0, 160, 0, 0),
+                       Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                       "(ESC — прозреть)")
+            p.end()
+        except Exception:
+            pass
+
+
+class DolboebPanel(QDialog):
+    """Панель включения долбаёбских функций (всё, что мы надобавляли)."""
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🤪 Долбаёбские функции")
+        self.setMinimumWidth(420)
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel("Включай/выключай всю накопленную дичь:"))
+
+        # (подпись, getter, setter)
+        self._items = [
+            ("🤙 Six-Seven режим", "six_seven_mode", self.mw.set_six_seven_mode),
+            ("💀 Зумер-режим (aura)", "zoomer_mode", self.mw.set_zoomer_mode),
+            ("⬛ Режим страдания (Палестины)", "suffer_mode",
+             lambda v: self.mw.enable_suffer_mode(confirm=False) if v else self.mw.disable_suffer_mode()),
+            ("💥 ПИЗДЕЦ-режим (хаос)", "chaos_mode", self.mw.set_chaos_mode),
+            ("🐐 Фото на весь экран", "image_overlay_on", self.mw.set_image_overlay),
+            ("📢 Госреклама каждые 30с", "ad_nag_mode", self.mw.set_ad_nag_mode),
+            ("🕵️ Режим иноагента (.com)", "inoagent_mode", self.mw.set_inoagent_mode),
+            ("⚡ EblanBoost (тормоз)", "eblanboost_on", self.mw.set_eblanboost),
+        ]
+        self._boxes = []
+        for label, attr, setter in self._items:
+            cb = QCheckBox(label)
+            cb.setChecked(bool(getattr(self.mw, attr, False)))
+            cb.toggled.connect(lambda v, s=setter: s(v))
+            root.addWidget(cb)
+            self._boxes.append((cb, attr))
+
+        btn = QPushButton("Готово")
+        btn.clicked.connect(self.accept)
+        root.addWidget(btn)
 
 
 class MainWindow(QMainWindow):
@@ -7190,14 +7172,12 @@ class MainWindow(QMainWindow):
         self.ad_nag_mode = False
         self._ad_nag_timer = None
         self._ad_overlay = None
-        # Слоты (форс каждые 5 мин) + гниль браузера
-        self.rot_level = 0
-        self.rot_overlay = None
-        self._slots_timer = None
         self._gamer_title_timer = None
-        # EblanBoost (косметический «ускоритель»)
+        # EblanBoost (реальный тормоз)
         self.eblanboost_on = False
         self._boost_timer = None
+        # Режим слепого
+        self.blind_overlay = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -7263,7 +7243,6 @@ class MainWindow(QMainWindow):
                     self.image_overlay_on = bool(data.get("image_overlay_on", False))
                     self.inoagent_mode = bool(data.get("inoagent_mode", False))
                     self.ad_nag_mode = bool(data.get("ad_nag_mode", False))
-                    self.rot_level = int(data.get("rot_level", 0) or 0)
                     self.eblanboost_on = bool(data.get("eblanboost_on", False))
                     # VLESS
                     try:
@@ -7294,11 +7273,21 @@ class MainWindow(QMainWindow):
         # Load extensions
         self.extensions = load_extensions(self)
 
-        self.web_profile = QWebEngineProfile(self)
+        # Именованный профиль = постоянное хранилище на диске (куки сохраняются).
+        self.web_profile = QWebEngineProfile("eblan_main", self)
         self.web_profile.setHttpUserAgent(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
         )
         self.web_profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
+        # Сохранение cookie-файлов и кеша между сессиями.
+        try:
+            _wd = os.path.join(os.path.dirname(get_settings_path()), "webdata")
+            os.makedirs(_wd, exist_ok=True)
+            self.web_profile.setPersistentStoragePath(_wd)
+            self.web_profile.setCachePath(os.path.join(_wd, "cache"))
+            self.web_profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
+        except Exception as _e:
+            print(f"[cookies] persist setup: {_e}")
 
         # connect download handling
         try:
@@ -7385,14 +7374,11 @@ class MainWindow(QMainWindow):
         if getattr(self, 'ad_nag_mode', False):
             QTimer.singleShot(1200, lambda: self.set_ad_nag_mode(True))
 
-        # Слоты вылезают каждые 5 минут.
-        self._start_forced_slots()
         # EblanBoost — восстановить, если был включён.
         if getattr(self, 'eblanboost_on', False):
             QTimer.singleShot(1400, lambda: self.set_eblanboost(True))
-        # Восстановить гниль браузера, если была.
-        if getattr(self, 'rot_level', 0) > 0:
-            QTimer.singleShot(1300, self._apply_rot_overlay)
+        # Флаг установщика «долбаёбские функции» (Windows-реестр).
+        QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
@@ -7682,11 +7668,6 @@ class MainWindow(QMainWindow):
         calc_action.triggered.connect(self.open_calculator)
         br_menu.addAction(calc_action)
 
-        slots_action = QAction("🎰 Слоты (на Еблан Кеш)", self)
-        slots_action.setStatusTip("Крути слоты на Еблан Кеш. Каждые 5 мин слот вылезает сам.")
-        slots_action.triggered.connect(lambda: self.open_slots(forced=False))
-        br_menu.addAction(slots_action)
-
         cheats_action = QAction("🧩 Читы", self)
         cheats_action.setStatusTip("Чит-коды на Еблан Кеш / ауру / разблокировку")
         cheats_action.triggered.connect(self.open_cheats)
@@ -7705,9 +7686,30 @@ class MainWindow(QMainWindow):
         self.eblanboost_action = QAction("⚡ EblanBoost™ (ускорение ×777)", self)
         self.eblanboost_action.setCheckable(True)
         self.eblanboost_action.setChecked(getattr(self, 'eblanboost_on', False))
-        self.eblanboost_action.setStatusTip("Ускоряет всё в 777 раз (по факту нет 🗿)")
+        self.eblanboost_action.setStatusTip("«Ускоряет» в 777 раз (по факту реально тормозит)")
         self.eblanboost_action.triggered.connect(lambda c: self.set_eblanboost(c))
         br_menu.addAction(self.eblanboost_action)
+
+        steam2_action = QAction("🎮 Steam 2 (крутые игры)", self)
+        steam2_action.setStatusTip("Открыть Steam 2 с крутыми играми")
+        steam2_action.triggered.connect(self.open_steam2)
+        br_menu.addAction(steam2_action)
+
+        vibe_action = QAction("🤖 Режим вайбкода (ИИ-агент + терминал)", self)
+        vibe_action.setStatusTip("ИИ-агент для вайбкода с терминалом")
+        vibe_action.triggered.connect(self.open_vibecode)
+        br_menu.addAction(vibe_action)
+
+        blind_action = QAction("🦯 Режим слепого", self)
+        blind_action.setStatusTip("Убрать весь интерфейс. ESC — выход.")
+        blind_action.triggered.connect(lambda: self.set_blind_mode(True))
+        br_menu.addAction(blind_action)
+
+        br_menu.addSeparator()
+        dolboeb_action = QAction("🤪 Долбаёбские функции…", self)
+        dolboeb_action.setStatusTip("Включение/выключение всей накопленной дичи")
+        dolboeb_action.triggered.connect(self.open_dolboeb_panel)
+        br_menu.addAction(dolboeb_action)
 
         self.add_new_tab(start_page=True)
 
@@ -8103,7 +8105,6 @@ class MainWindow(QMainWindow):
                 "image_overlay_on": bool(getattr(self, 'image_overlay_on', False)),
                 "inoagent_mode": bool(getattr(self, 'inoagent_mode', False)),
                 "ad_nag_mode": bool(getattr(self, 'ad_nag_mode', False)),
-                "rot_level": int(getattr(self, 'rot_level', 0) or 0),
                 "eblanboost_on": bool(getattr(self, 'eblanboost_on', False)),
             }
             try:
@@ -8268,21 +8269,81 @@ class MainWindow(QMainWindow):
     def open_cheats(self):
         CheatsDialog(self).exec()
 
+    def open_steam2(self):
+        """Steam 2 с крутыми играми (по факту — наш сайт)."""
+        self.add_new_tab(QUrl("https://eblansoft.ru/steam2"), "🎮 Steam 2")
+
+    def open_vibecode(self):
+        VibeCodeDialog(self).exec()
+
+    def open_dolboeb_panel(self):
+        DolboebPanel(self).exec()
+
+    def _apply_installer_dolboeb_flag(self):
+        """Если установщик выставил HKCU\\Software\\EBLAN\\DolboebMode=1 — врубаем дичь."""
+        if not sys.platform.startswith("win"):
+            return
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\EBLAN", 0,
+                                 winreg.KEY_READ | winreg.KEY_WRITE)
+            val, _ = winreg.QueryValueEx(key, "DolboebMode")
+            if int(val) == 1:
+                self.set_six_seven_mode(True)
+                self.set_chaos_mode(True)
+                self.set_ad_nag_mode(True)
+                winreg.SetValueEx(key, "DolboebMode", 0, winreg.REG_DWORD, 0)
+                self.status.showMessage("🤪 Долбаёбские функции из установщика активированы", 5000)
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+
+    # ---------- Режим слепого ----------
+    def set_blind_mode(self, enabled):
+        """Убирает весь интерфейс и показывает «ты слепой» на весь экран. ESC — выход."""
+        if enabled:
+            if getattr(self, "blind_overlay", None) is None:
+                self.blind_overlay = BlindOverlay(self)
+            self._position_blind_overlay()
+            self.blind_overlay.show()
+            self.blind_overlay.raise_()
+            self.blind_overlay.setFocus()
+        else:
+            if getattr(self, "blind_overlay", None) is not None:
+                try:
+                    self.blind_overlay.hide(); self.blind_overlay.deleteLater()
+                except Exception:
+                    pass
+                self.blind_overlay = None
+
+    def _position_blind_overlay(self):
+        if getattr(self, "blind_overlay", None) is None:
+            return
+        try:
+            self.blind_overlay.setGeometry(self.rect())
+            self.blind_overlay.raise_()
+        except Exception:
+            pass
+
     # ---------- EblanBoost™ (косметический «ускоритель») ----------
     def set_eblanboost(self, enabled):
-        """Ускоряет всё «в 777 раз» и пишет скорость ×1488. По факту — ничего. 🗿"""
+        """Пишет «ускорение ×777 / ×1488», а по факту РЕАЛЬНО тормозит браузер.
+
+        Тормоз управляемый: жжём CPU кусками, оставляя окну время реагировать,
+        чтобы EblanBoost можно было выключить тем же тумблером.
+        """
         self.eblanboost_on = bool(enabled)
         if self.eblanboost_on:
             if self._boost_timer is None:
                 self._boost_timer = QTimer(self)
                 self._boost_timer.timeout.connect(self._boost_tick)
-            self._boost_timer.start(900)
-            self.zoomer_burst("⚡ EblanBoost™ ВКЛ — ускорено в 777 раз 🚀")
-            self._boost_tick()
+            # Каждые 120 мс подвешиваем главный поток — отсюда лаги.
+            self._boost_timer.start(120)
+            self.zoomer_burst("⚡ EblanBoost™ ВКЛ — ускорено в 777 раз 🚀 (наоборот)")
         else:
             if self._boost_timer is not None:
                 self._boost_timer.stop()
-            self.status.showMessage("EblanBoost™ выкл. Стало честно медленно. 🗿", 4000)
+            self.status.showMessage("EblanBoost™ выкл. Лаги убраны. 🗿", 4000)
         try:
             self.eblanboost_action.setChecked(self.eblanboost_on)
         except Exception:
@@ -8290,10 +8351,17 @@ class MainWindow(QMainWindow):
         self.save_settings()
 
     def _boost_tick(self):
-        # Фейковая «скорость»: рандом × 1488. По факту ничего не ускоряется.
+        # «Оптимизация»: жжём ~85 мс CPU на главном потоке = реальные тормоза.
+        # 35 мс из 120 остаются окну, чтобы тумблер «выкл» сработал.
+        end = time.time() + 0.085
+        x = 0.0
+        while time.time() < end:
+            for _ in range(20000):
+                x += 1.000001 * 1.000001
         fake = random.randint(67, 777) * 1488
         try:
-            self.status.showMessage(f"⚡ EblanBoost™: {fake:,} оптимизаций/сек · ускорение ×777 🚀", 1500)
+            self.status.showMessage(
+                f"⚡ EblanBoost™: {fake:,} оптимизаций/сек · ускорение ×1488 🚀", 1500)
         except Exception:
             pass
 
@@ -8934,64 +9002,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"[ad] punish: {e}")
 
-    # ---------- Слоты + гниль браузера ----------
-    def open_slots(self, forced=False):
-        dlg = SlotsDialog(self, forced=forced)
-        dlg.exec()
-
-    def _start_forced_slots(self):
-        """Каждые 5 минут принудительно вылезает слот."""
-        if self._slots_timer is None:
-            self._slots_timer = QTimer(self)
-            self._slots_timer.timeout.connect(lambda: self.open_slots(forced=True))
-        self._slots_timer.start(300000)  # 5 минут
-
-    def rot_browser(self, n=1):
-        """Гноим браузер сильнее (проигрыш в форс-слоте)."""
-        self.rot_level = min(12, int(getattr(self, "rot_level", 0)) + int(n))
-        self._apply_rot_overlay()
-        self.save_settings()
-        msg = "🤮 БРАУЗЕР СГНИЛ ОКОНЧАТЕЛЬНО. ПИЗДЕЦ." if self.rot_level >= 10 else \
-              f"🤢 браузер гниёт… уровень {self.rot_level}"
-        self.status.showMessage(msg, 5000)
-
-    def heal_rot(self, n=1):
-        """Подлечиваем гниль (выигрыш в слотах)."""
-        if int(getattr(self, "rot_level", 0)) <= 0:
-            return
-        self.rot_level = max(0, int(self.rot_level) - int(n))
-        self._apply_rot_overlay()
-        self.save_settings()
-
-    def _apply_rot_overlay(self):
-        if int(getattr(self, "rot_level", 0)) <= 0:
-            if self.rot_overlay is not None:
-                try:
-                    self.rot_overlay.hide(); self.rot_overlay.deleteLater()
-                except Exception:
-                    pass
-                self.rot_overlay = None
-            return
-        if self.rot_overlay is None:
-            self.rot_overlay = RotOverlay(self, level=self.rot_level)
-        else:
-            self.rot_overlay.set_level(self.rot_level)
-        self._position_rot_overlay()
-        self.rot_overlay.show()
-        self.rot_overlay.raise_()
-
-    def _position_rot_overlay(self):
-        if self.rot_overlay is None:
-            return
-        try:
-            central = self.centralWidget()
-            geo = central.geometry() if central is not None else self.rect()
-            self.rot_overlay.setGeometry(geo)
-            self.rot_overlay._rebuild()
-            self.rot_overlay.raise_()
-        except Exception:
-            pass
-
     def _show_ad(self):
         # Не плодим окна: если предыдущее ещё открыто — пропускаем.
         if is_widget_alive_visible(self._ad_overlay):
@@ -9093,8 +9103,8 @@ class MainWindow(QMainWindow):
             self._position_suffer_overlay()
         if getattr(self, 'image_overlay', None) is not None:
             self._position_image_overlay()
-        if getattr(self, 'rot_overlay', None) is not None:
-            self._position_rot_overlay()
+        if getattr(self, 'blind_overlay', None) is not None:
+            self._position_blind_overlay()
 
     # ------------ Счётчик «Сколько времени проебал» ------------
 
@@ -9460,7 +9470,6 @@ class MainWindow(QMainWindow):
             html = eblan_start_page_html(
                 balance=int(getattr(self, "eblan_cash", 0)),
                 gaming_on=bool(getattr(self, "gamer_mode", False)),
-                rot_level=int(getattr(self, "rot_level", 0)),
                 boost_on=bool(getattr(self, "eblanboost_on", False)),
             )
             browser.setHtml(html, QUrl("https://eblan.start/"))
@@ -9478,14 +9487,16 @@ class MainWindow(QMainWindow):
                 self.load_start_page(w)
         elif cmd == "shop":
             self.open_shop()
-        elif cmd == "slots":
-            self.open_slots()
         elif cmd == "cheats":
             self.open_cheats()
         elif cmd == "keygen":
             self.open_keygen()
         elif cmd == "cert":
             self.open_cert()
+        elif cmd == "steam2":
+            self.open_steam2()
+        elif cmd == "vibecode":
+            self.open_vibecode()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
