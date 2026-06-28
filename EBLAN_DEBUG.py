@@ -656,6 +656,22 @@ def load_overlay_pixmap():
     return QPixmap(OVERLAY_IMAGE_FALLBACK)
 
 
+def dibof_data_uri():
+    """data: URI картинки-заглушки (images/dibof.png, фолбэк — cross.png)."""
+    for fn in ("dibof.png", "cross.png", "eblanai.png"):
+        p = os.path.join("images", fn)
+        if os.path.exists(p):
+            try:
+                with open(p, "rb") as f:
+                    b = base64.b64encode(f.read()).decode("ascii")
+                return "data:image/png;base64," + b
+            except Exception:
+                continue
+    # совсем пусто — прозрачный 1x1
+    return ("data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+
+
 def is_widget_alive_visible(w):
     """True, если виджет жив (C++ объект не удалён через deleteLater) и видим.
 
@@ -1295,13 +1311,33 @@ class UpdateService(QObject):
                 pass
 
 
-def get_settings_path():
+def get_config_dir():
+    """Папка конфигов: Windows → %APPDATA%\\EBLAN, Linux/Mac → ~/.eblan-browser."""
     if sys.platform.startswith("win"):
         base = os.path.join(os.getenv("APPDATA") or os.path.expanduser("~"), "EBLAN")
     else:
-        base = os.path.expanduser("~/etc/eblan")
+        base = os.path.expanduser("~/.eblan-browser")
     os.makedirs(base, exist_ok=True)
-    return os.path.join(base, "settings.json")
+    # Разовая миграция со старого расположения (~/etc/eblan).
+    try:
+        old = os.path.expanduser("~/etc/eblan")
+        if (not sys.platform.startswith("win") and os.path.isdir(old)
+                and not os.path.exists(os.path.join(base, "settings.json"))
+                and os.path.exists(os.path.join(old, "settings.json"))):
+            for fn in os.listdir(old):
+                src = os.path.join(old, fn); dst = os.path.join(base, fn)
+                if not os.path.exists(dst):
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
+    except Exception:
+        pass
+    return base
+
+
+def get_settings_path():
+    return os.path.join(get_config_dir(), "settings.json")
 
 
 # ============================================================
@@ -2954,6 +2990,10 @@ def eblan_push_key(api_base: str, token: str, key: str, timeout: int = 10) -> di
         info_widget.addWidget(version)
 
         info_widget.addWidget(QLabel("Лучший в мире браузер 67 с защитой и геймерским режимом!"))
+
+        certified = QLabel("✅ Сертифицирован Минцифры России · 🔒 Еблан Секьюр")
+        certified.setStyleSheet("color:#3fb950; font-weight:700;")
+        info_widget.addWidget(certified)
 
         header_layout.addLayout(info_widget)
         layout.addLayout(header_layout)
@@ -6628,6 +6668,8 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
         tile("eblan:shop", "🛒", "Магазин", "функции за Еблан Кеш"),
         tile("eblan:steam2", "🎮", "Steam 2", "крутые игры"),
         tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
+        tile("eblan:zmode", "🇷🇺", "Z режим", "67 вкладок + гимн"),
+        tile("eblan:dep", "🎲", "DEP", "виртуальное казино"),
         tile("eblan:cheats", "🧩", "Читы", "панель кодов"),
         tile("eblan:keygen", "🔑", "Keygen", "ключи WinRAR"),
         tile("eblan:cert", "🛡️", "Сертификаты", "Минцифры · Еблан Секьюр"),
@@ -7113,6 +7155,159 @@ class DolboebPanel(QDialog):
         root.addWidget(btn)
 
 
+class DepDialog(QDialog):
+    """Интеграция с DEP ID (виртуальное казино). DepCoins — НЕ реальные деньги."""
+
+    BASE = "https://zenusus.serv00.net/dep/api/v1"
+
+    _balance = pyqtSignal(dict)
+    _spin = pyqtSignal(dict)
+    _err = pyqtSignal(str)
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🎲 DEP — виртуальное казино")
+        self.setMinimumWidth(420)
+        root = QVBoxLayout(self)
+
+        root.addWidget(QLabel("DepCoins — виртуальная валюта (не реальные деньги)."))
+
+        krow = QHBoxLayout()
+        krow.addWidget(QLabel("API-ключ:"))
+        self.key_in = QLineEdit(getattr(self.mw, "dep_api_key", "") or "")
+        self.key_in.setEchoMode(QLineEdit.EchoMode.Password)
+        self.key_in.setPlaceholderText("ключ из DEP ID → Панель разработчика")
+        krow.addWidget(self.key_in, 1)
+        root.addLayout(krow)
+
+        self.bal_lbl = QLabel("Баланс: —")
+        f = self.bal_lbl.font(); f.setBold(True); self.bal_lbl.setFont(f)
+        root.addWidget(self.bal_lbl)
+
+        refresh = QPushButton("Обновить баланс")
+        refresh.clicked.connect(self._get_balance)
+        root.addWidget(refresh)
+
+        brow = QHBoxLayout()
+        brow.addWidget(QLabel("Ставка:"))
+        self.bet = QSpinBox(); self.bet.setRange(1, 1000000); self.bet.setValue(10)
+        brow.addWidget(self.bet)
+        spin_btn = QPushButton("Крутить слоты 🎰")
+        spin_btn.clicked.connect(self._do_spin)
+        brow.addWidget(spin_btn)
+        root.addLayout(brow)
+
+        self.result = QLabel("")
+        self.result.setWordWrap(True)
+        root.addWidget(self.result)
+
+        self._balance.connect(self._on_balance)
+        self._spin.connect(self._on_spin)
+        self._err.connect(lambda m: self.result.setText(f"Ошибка: {m}"))
+
+    def _headers(self):
+        key = self.key_in.text().strip()
+        # сохраняем ключ
+        if key and key != getattr(self.mw, "dep_api_key", ""):
+            self.mw.dep_api_key = key
+            self.mw.save_settings()
+        return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    def _get_balance(self):
+        h = self._headers()
+        def work():
+            try:
+                r = requests.get(self.BASE + "/casino.php", headers=h, timeout=20)
+                if r.status_code != 200:
+                    self._err.emit(f"HTTP {r.status_code}: {r.text[:120]}"); return
+                self._balance.emit(r.json())
+            except Exception as e:
+                self._err.emit(str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_balance(self, data):
+        self.bal_lbl.setText(f"Баланс: {data.get('depcoins', '?')} DepCoins · долг: {data.get('debt', 0)}")
+
+    def _do_spin(self):
+        h = self._headers()
+        bet = int(self.bet.value())
+        def work():
+            try:
+                r = requests.post(self.BASE + "/casino.php", headers=h,
+                                  json={"bet": bet}, timeout=20)
+                if r.status_code != 200:
+                    self._err.emit(f"HTTP {r.status_code}: {r.text[:120]}"); return
+                self._spin.emit(r.json())
+            except Exception as e:
+                self._err.emit(str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_spin(self, d):
+        res = {"lose": "💀 Проигрыш", "small_win": "🙂 Возврат 30%",
+               "win": "🎉 Выигрыш ×1.5", "jackpot": "💰 ДЖЕКПОТ ×5"}.get(d.get("result"), d.get("result"))
+        self.result.setText(
+            f"{res} · выигрыш {d.get('win', 0)} · баланс {d.get('balance_after', '?')} · долг {d.get('debt', 0)}")
+        self.bal_lbl.setText(f"Баланс: {d.get('balance_after', '?')} DepCoins · долг: {d.get('debt', 0)}")
+
+
+class TranslatorDialog(QDialog):
+    """Переводчик на базе встроенного EBLAN AI (Mistral)."""
+
+    _done = pyqtSignal(str)
+
+    LANGS = ["русский", "english", "中文", "español", "deutsch", "français", "українська"]
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🌐 EBLAN Переводчик")
+        self.setMinimumWidth(460)
+        root = QVBoxLayout(self)
+
+        self.src = QPlainTextEdit(); self.src.setPlaceholderText("текст для перевода…")
+        root.addWidget(self.src)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("На язык:"))
+        self.lang = QComboBox(); self.lang.addItems(self.LANGS)
+        row.addWidget(self.lang)
+        go = QPushButton("Перевести 🌐"); go.clicked.connect(self._go)
+        row.addWidget(go)
+        root.addLayout(row)
+
+        self.out = QPlainTextEdit(); self.out.setReadOnly(True)
+        self.out.setPlaceholderText("перевод…")
+        root.addWidget(self.out)
+
+        self._done.connect(self.out.setPlainText)
+
+    def _go(self):
+        text = self.src.toPlainText().strip()
+        if not text:
+            return
+        lang = self.lang.currentText()
+        self.out.setPlainText("перевожу…")
+        server = getattr(self.mw, "ai_server", "https://api.mistral.ai/v1/chat/completions")
+        key = getattr(self.mw, "ai_key", "")
+        model = getattr(self.mw, "ai_model", "mistral-large-2512")
+
+        def work():
+            try:
+                r = requests.post(server,
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={"model": model, "messages": [
+                        {"role": "system", "content":
+                         f"Ты переводчик. Переведи текст пользователя на {lang}. "
+                         "Выдай ТОЛЬКО перевод, без пояснений."},
+                        {"role": "user", "content": text},
+                    ], "max_tokens": 1000, "temperature": 0.2}, timeout=40)
+                self._done.emit(r.json()["choices"][0]["message"]["content"].strip())
+            except Exception as e:
+                self._done.emit(f"[ошибка перевода: {e}]")
+        threading.Thread(target=work, daemon=True).start()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -7178,6 +7373,10 @@ class MainWindow(QMainWindow):
         self._boost_timer = None
         # Режим слепого
         self.blind_overlay = None
+        # Закладки / вертикальные вкладки / DEP
+        self.bookmarks = []
+        self.vertical_tabs = False
+        self.dep_api_key = ""
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -7244,6 +7443,9 @@ class MainWindow(QMainWindow):
                     self.inoagent_mode = bool(data.get("inoagent_mode", False))
                     self.ad_nag_mode = bool(data.get("ad_nag_mode", False))
                     self.eblanboost_on = bool(data.get("eblanboost_on", False))
+                    self.bookmarks = list(data.get("bookmarks", []) or [])
+                    self.vertical_tabs = bool(data.get("vertical_tabs", False))
+                    self.dep_api_key = data.get("dep_api_key", "") or ""
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -7451,6 +7653,34 @@ class MainWindow(QMainWindow):
         self.tonkeeper_action.setStatusTip("Подключи свой TON-кошелёк. 100% не скам, мамой клянусь.")
         self.tonkeeper_action.triggered.connect(self.open_tonkeeper)
         navtb.addAction(self.tonkeeper_action)
+
+        navtb.addSeparator()
+
+        # Поделиться + перевод
+        share_btn = QAction("🔗 Поделиться", self)
+        share_btn.setStatusTip("Поделиться текущей страницей")
+        share_btn.triggered.connect(self.share_current_page)
+        navtb.addAction(share_btn)
+
+        translate_btn = QAction("🌐 Перевод", self)
+        translate_btn.setStatusTip("Перевести выделенный/введённый текст через EBLAN AI")
+        translate_btn.triggered.connect(self.open_translator)
+        navtb.addAction(translate_btn)
+
+        # ★ в закладки
+        bm_btn = QAction("★", self)
+        bm_btn.setStatusTip("Добавить текущую страницу в закладки")
+        bm_btn.triggered.connect(self.bookmark_current_page)
+        navtb.addAction(bm_btn)
+
+        # Панель закладок
+        self.bookmarks_bar = QToolBar("Закладки")
+        self.bookmarks_bar.setIconSize(QtCore.QSize(16, 16))
+        self.addToolBarBreak()
+        self.addToolBar(self.bookmarks_bar)
+        self._seed_default_bookmarks()
+        self._rebuild_bookmarks_bar()
+        self.apply_vertical_tabs()
 
         file_menu = self.menuBar().addMenu("&Файл")
 
@@ -7704,6 +7934,27 @@ class MainWindow(QMainWindow):
         blind_action.setStatusTip("Убрать весь интерфейс. ESC — выход.")
         blind_action.triggered.connect(lambda: self.set_blind_mode(True))
         br_menu.addAction(blind_action)
+
+        z_action = QAction("🇷🇺 Z режим (67 вкладок + гимн)", self)
+        z_action.setStatusTip("67 вкладок ВК/МАКС/новости + гимн России")
+        z_action.triggered.connect(self.start_z_mode)
+        br_menu.addAction(z_action)
+
+        dep_action = QAction("🎲 DEP (виртуальное казино)", self)
+        dep_action.setStatusTip("Интеграция с DEP ID — баланс DepCoins и слоты (виртуальные)")
+        dep_action.triggered.connect(self.open_dep)
+        br_menu.addAction(dep_action)
+
+        self.vtabs_action = QAction("↕️ Вертикальные вкладки", self)
+        self.vtabs_action.setCheckable(True)
+        self.vtabs_action.setChecked(getattr(self, 'vertical_tabs', False))
+        self.vtabs_action.triggered.connect(lambda c: self.toggle_vertical_tabs(c))
+        br_menu.addAction(self.vtabs_action)
+
+        import_action = QAction("📥 Импорт из другого браузера", self)
+        import_action.setStatusTip("Импорт закладок из Chrome/Edge/Yandex/Firefox")
+        import_action.triggered.connect(self.import_from_browser)
+        br_menu.addAction(import_action)
 
         br_menu.addSeparator()
         dolboeb_action = QAction("🤪 Долбаёбские функции…", self)
@@ -8106,6 +8357,9 @@ class MainWindow(QMainWindow):
                 "inoagent_mode": bool(getattr(self, 'inoagent_mode', False)),
                 "ad_nag_mode": bool(getattr(self, 'ad_nag_mode', False)),
                 "eblanboost_on": bool(getattr(self, 'eblanboost_on', False)),
+                "bookmarks": list(getattr(self, 'bookmarks', []) or []),
+                "vertical_tabs": bool(getattr(self, 'vertical_tabs', False)),
+                "dep_api_key": getattr(self, 'dep_api_key', "") or "",
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -8278,6 +8532,201 @@ class MainWindow(QMainWindow):
 
     def open_dolboeb_panel(self):
         DolboebPanel(self).exec()
+
+    # ---------- Закладки ----------
+    def _seed_default_bookmarks(self):
+        if not self.bookmarks:
+            self.bookmarks = [
+                {"title": "ВКонтакте", "url": "https://vk.com"},
+                {"title": "МАКС", "url": "https://max.ru"},
+            ]
+            self.save_settings()
+
+    def _rebuild_bookmarks_bar(self):
+        try:
+            self.bookmarks_bar.clear()
+            for bm in self.bookmarks:
+                act = QAction("★ " + bm.get("title", "?"), self)
+                act.setStatusTip(bm.get("url", ""))
+                act.triggered.connect(lambda _=False, u=bm.get("url", ""): self._open_bookmark(u))
+                self.bookmarks_bar.addAction(act)
+        except Exception as e:
+            print(f"[bm] rebuild: {e}")
+
+    def _open_bookmark(self, url):
+        try:
+            self.tabs.currentWidget().setUrl(QUrl(url))
+        except Exception:
+            self.add_new_tab(QUrl(url))
+
+    def bookmark_current_page(self):
+        try:
+            w = self.tabs.currentWidget()
+            url = w.url().toString()
+            title = w.page().title() or url
+        except Exception:
+            return
+        if not url or url.startswith("data:"):
+            self.status.showMessage("Эту страницу нельзя в закладки 🗿", 3000)
+            return
+        if any(b.get("url") == url for b in self.bookmarks):
+            self.status.showMessage("Уже в закладках ★", 3000)
+            return
+        self.bookmarks.append({"title": title[:40], "url": url})
+        self.save_settings()
+        self._rebuild_bookmarks_bar()
+        self.status.showMessage(f"★ Добавлено в закладки: {title[:40]}", 4000)
+
+    # ---------- Поделиться ----------
+    def share_current_page(self):
+        try:
+            url = self.tabs.currentWidget().url().toString()
+        except Exception:
+            url = ""
+        if not url:
+            return
+        menu = QMenu(self)
+        menu.addAction("📋 Скопировать ссылку",
+                       lambda: QApplication.clipboard().setText(url))
+        menu.addAction("🔵 Поделиться во ВКонтакте",
+                       lambda: self.add_new_tab(QUrl("https://vk.com/share.php?url=" + urllib.parse.quote(url))))
+        menu.addAction("📨 Telegram",
+                       lambda: QApplication.clipboard().setText(url) or
+                       self.status.showMessage("Ссылка скопирована — кидай в тг", 3000))
+        menu.exec(QCursor.pos())
+
+    # ---------- Переводчик ----------
+    def open_translator(self):
+        TranslatorDialog(self).exec()
+
+    # ---------- DEP (виртуальное казино) ----------
+    def open_dep(self):
+        DepDialog(self).exec()
+
+    # ---------- Вертикальные вкладки ----------
+    def apply_vertical_tabs(self):
+        try:
+            pos = (QTabWidget.TabPosition.West if self.vertical_tabs
+                   else QTabWidget.TabPosition.North)
+            self.tabs.setTabPosition(pos)
+        except Exception:
+            pass
+
+    def toggle_vertical_tabs(self, on):
+        self.vertical_tabs = bool(on)
+        self.apply_vertical_tabs()
+        self.save_settings()
+
+    # ---------- Импорт из другого браузера ----------
+    def import_from_browser(self):
+        found = []
+        # Chrome / Edge / Yandex — Bookmarks (JSON)
+        candidates = []
+        home = os.path.expanduser("~")
+        if sys.platform.startswith("win"):
+            la = os.getenv("LOCALAPPDATA", "")
+            candidates += [
+                os.path.join(la, "Google", "Chrome", "User Data", "Default", "Bookmarks"),
+                os.path.join(la, "Microsoft", "Edge", "User Data", "Default", "Bookmarks"),
+                os.path.join(la, "Yandex", "YandexBrowser", "User Data", "Default", "Bookmarks"),
+            ]
+        else:
+            candidates += [
+                os.path.join(home, ".config", "google-chrome", "Default", "Bookmarks"),
+                os.path.join(home, ".config", "chromium", "Default", "Bookmarks"),
+                os.path.join(home, ".config", "yandex-browser-beta", "Default", "Bookmarks"),
+            ]
+        for path in candidates:
+            try:
+                if os.path.exists(path):
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    def walk(node):
+                        if node.get("type") == "url":
+                            found.append({"title": node.get("name", "?")[:40], "url": node.get("url", "")})
+                        for ch in node.get("children", []):
+                            walk(ch)
+                    for root in (data.get("roots", {}) or {}).values():
+                        if isinstance(root, dict):
+                            walk(root)
+            except Exception:
+                continue
+        # Firefox — places.sqlite (read-only copy)
+        try:
+            import glob as _glob
+            ff_dirs = _glob.glob(os.path.join(home, ".mozilla", "firefox", "*.default*"))
+            for d in ff_dirs:
+                db = os.path.join(d, "places.sqlite")
+                if os.path.exists(db):
+                    tmp = os.path.join(tempfile.gettempdir(), "eblan_places.sqlite")
+                    shutil.copy2(db, tmp)
+                    import sqlite3
+                    con = sqlite3.connect(tmp); cur = con.cursor()
+                    cur.execute("SELECT b.title, p.url FROM moz_bookmarks b "
+                                "JOIN moz_places p ON b.fk=p.id WHERE b.title IS NOT NULL LIMIT 500")
+                    for title, url in cur.fetchall():
+                        if url and url.startswith("http"):
+                            found.append({"title": (title or url)[:40], "url": url})
+                    con.close()
+        except Exception:
+            pass
+
+        added = 0
+        existing = {b.get("url") for b in self.bookmarks}
+        for bm in found:
+            if bm["url"] and bm["url"] not in existing:
+                self.bookmarks.append(bm); existing.add(bm["url"]); added += 1
+        self.save_settings()
+        self._rebuild_bookmarks_bar()
+        QMessageBox.information(self, "Импорт",
+                               f"Импортировано закладок: {added}\n(найдено всего: {len(found)})")
+
+    # ---------- Z-режим ----------
+    def start_z_mode(self):
+        ans = QMessageBox.question(
+            self, "Z режим 🇷🇺",
+            "Сейчас откроется 67 вкладок (ВК, МАКС, новости) и заиграет гимн.\n"
+            "Браузер может задуматься. Поехали?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        sites = ["https://vk.com", "https://max.ru", "https://rbc.ru",
+                 "https://dzen.ru", "https://ria.ru", "https://tass.ru"]
+        for i in range(67):
+            url = sites[i % len(sites)]
+            QTimer.singleShot(i * 120, lambda u=url: self._z_open_tab(u))
+        self._play_anthem()
+        self.status.showMessage("🇷🇺 Z режим: 67 вкладок + гимн. Слава!", 6000)
+
+    def _z_open_tab(self, url):
+        try:
+            browser = QWebEngineView()
+            page = EblanPage(self.web_profile, browser, self)
+            browser.setPage(page)
+            browser.setUrl(QUrl(url))
+            i = self.tabs.addTab(browser, "🇷🇺")
+            browser.loadFinished.connect(lambda ok, i=i, b=browser: self.on_tab_load_finished(i, b))
+        except Exception as e:
+            print(f"[z] {e}")
+
+    def _play_anthem(self):
+        # Гимн играем, если есть файл images/anthem.mp3 и доступен QtMultimedia.
+        try:
+            path = os.path.join("images", "anthem.mp3")
+            if not os.path.exists(path):
+                self.status.showMessage("🎵 (положи images/anthem.mp3 для гимна)", 5000)
+                return
+            from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+            self._anthem_out = QAudioOutput()
+            self._anthem_player = QMediaPlayer()
+            self._anthem_player.setAudioOutput(self._anthem_out)
+            self._anthem_player.setSource(QUrl.fromLocalFile(os.path.abspath(path)))
+            self._anthem_out.setVolume(1.0)
+            self._anthem_player.play()
+        except Exception as e:
+            print(f"[anthem] {e}")
 
     def _apply_installer_dolboeb_flag(self):
         """Если установщик выставил HKCU\\Software\\EBLAN\\DolboebMode=1 — врубаем дичь."""
@@ -9497,6 +9946,10 @@ class MainWindow(QMainWindow):
             self.open_steam2()
         elif cmd == "vibecode":
             self.open_vibecode()
+        elif cmd == "zmode":
+            self.start_z_mode()
+        elif cmd == "dep":
+            self.open_dep()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
@@ -10143,13 +10596,62 @@ class IncognitoWindow(QMainWindow):
 
         self.setCentralWidget(self._view)
 
+        # Анти-слежка: счётчик трекеров + оверлей поверх страницы.
+        self._trackers = 6767
+        self._track_overlay = QLabel(self._view)
+        self._track_overlay.setStyleSheet(
+            "background:rgba(10,10,12,210);color:#7CFC00;border:1px solid #2fa84f;"
+            "border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;")
+        self._track_overlay.setWordWrap(True)
+        self._track_overlay.setFixedWidth(280)
+        self._track_overlay.move(14, 14)
+        self._track_overlay.hide()
+        self._dibof = dibof_data_uri()
+
         try:
             self._view.urlChanged.connect(self._on_url_changed)
             self._view.titleChanged.connect(self._on_title_changed)
+            self._view.loadFinished.connect(self._on_anon_load)
         except Exception:
             pass
 
         self._view.setUrl(QUrl(start_url or INCOGNITO_HOMEPAGE))
+
+    def _on_anon_load(self, ok):
+        # Накручиваем «заблокированные трекеры» и вырезаем медиа со страницы.
+        try:
+            self._track_overlay.setText(
+                f"🛡 АНТИ-СЛЕЖКА\nЗаблокировано {self._trackers} трекеров от Google\n"
+                f"и ещё 1984 компаний")
+            self._trackers += random.randint(67, 467)
+            self._track_overlay.adjustSize()
+            self._track_overlay.setFixedWidth(280)
+            self._track_overlay.show()
+            self._track_overlay.raise_()
+        except Exception:
+            pass
+        try:
+            d = self._dibof
+            js = (
+                "(function(){var d=%r;"
+                "document.querySelectorAll('img').forEach(function(i){i.src=d;i.removeAttribute('srcset');});"
+                "document.querySelectorAll('video,iframe,audio,source,picture,canvas').forEach(function(v){"
+                "var im=document.createElement('img');im.src=d;im.style.maxWidth='320px';"
+                "try{v.replaceWith(im);}catch(e){}});"
+                "})();" % d
+            )
+            self._view.page().runJavaScript(js)
+        except Exception:
+            pass
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        try:
+            if getattr(self, "_track_overlay", None) is not None:
+                self._track_overlay.move(14, 14)
+                self._track_overlay.raise_()
+        except Exception:
+            pass
 
     def _on_url_entered(self):
         text = (self._urlbar.text() or "").strip()
