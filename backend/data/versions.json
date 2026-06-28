@@ -1,14 +1,14 @@
 {
   "schema": 2,
-  "updated_at": "2026-04-22",
+  "updated_at": "2026-06-28",
   "branches": {
     "main": {
-      "version": "R1.0.101",
-      "name": "Release 1.0.101",
-      "changelog": "Первая публичная сборка.\n- База браузера\n- EBLAN AI\n- Геймер-режим\n- Темы Ecss\n- Счётчик проёба",
-      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.0.101.zip",
+      "version": "6.7",
+      "name": "Release 6.7 (67)",
+      "changelog": "Обновление 6.7 (67).\n- Магазин и валюта «Еблан Кеш»\n- За вход в браузер списывается 199 кеша\n- За каждое действие капает кеш на разблокировку функций\n- Функции (AI, аноним, геймер, темы) покупаются в магазине\n- Кнопка «Tonkeeper 2 (не скам)»\n- Везде брендинг 67",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_6.7.zip",
       "force": false,
-      "published_at": "2026-04-01",
+      "published_at": "2026-06-28",
       "min_supported": "R1.0.0"
     },
     "public_beta": {

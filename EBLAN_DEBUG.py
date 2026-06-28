@@ -776,6 +776,63 @@ def get_settings_path():
 
 
 # ============================================================
+#   ВЕРСИЯ 6.7 + экономика «Еблан Кеш»
+#
+#   Шуточная внутренняя валюта. Стартовый баланс — 200.
+#   Чтобы войти в браузер, разово списывается 199 (остаётся 1).
+#   За каждое действие капает немного кеша, на который в магазине
+#   разблокируются «функции».
+# ============================================================
+EBLAN_VERSION = "6.7"
+EBLAN_CASH_START = 200          # стартовый баланс
+BROWSER_ENTRY_COST = 199        # разовая плата за вход в браузер
+
+# Каталог магазина: feature_id -> (название, цена, описание)
+EBLAN_SHOP = {
+    "ai":        ("EBLAN AI",                 50, "Чат с нейронкой прямо в браузере."),
+    "anon":      ("Анонимный режим",          40, "Приватное окно на Qwant без истории."),
+    "gamer":     ("Геймер-режим SoftBoost™",  30, "FPS-оверлей 1488 и «ускорение»."),
+    "themes":    ("Темы Ecss",                25, "Кастомные темы интерфейса."),
+    "tonkeeper": ("Tonkeeper 2 (не скам)",    67, "Подключи свой TON-кошелёк. 100% не скам."),
+}
+
+
+def get_local_ban_path():
+    """Файл-маркер локального «бана» (шуточный, ставится Tonkeeper-ом)."""
+    return os.path.join(os.path.dirname(get_settings_path()), "eblan_local_ban.json")
+
+
+def check_local_seed_ban():
+    """Проверяет шуточный локальный бан. Если есть — показывает заглушку и выходит.
+
+    Бан ставится после того, как пользователь «повёлся» и ввёл 24 слова в
+    Tonkeeper 2. Сами слова НИКУДА не сохраняются и не отправляются — здесь
+    хранится только факт бана и причина.
+    """
+    path = get_local_ban_path()
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            info = json.load(f)
+    except Exception:
+        info = {}
+    reason = (info.get("reason") or "Ты повёлся на «не скам».").strip()
+    try:
+        QMessageBox.critical(
+            None,
+            "ПОШЁЛ НАХУЙ",
+            "Ты забанен в EBLAN Browser 6.7, чмо.\n\n"
+            f"Причина:\n{reason}\n\n"
+            "Никогда. Не вводи. Свои 24 слова. Нигде.\n\n"
+            f"Если совсем невмоготу — удали файл:\n{path}",
+        )
+    except Exception:
+        print("[ban] локальный seed-бан активен:", reason)
+    sys.exit(0)
+
+
+# ============================================================
 #   VLESS клиент (Xray-core outbound + SOCKS5 для Chromium).
 #
 #   Возможности:
@@ -2297,7 +2354,7 @@ def eblan_push_key(api_base: str, token: str, key: str, timeout: int = 10) -> di
         title.setStyleSheet("color: #00d4ff;")
         info_widget.addWidget(title)
 
-        version_text = "R2"
+        version_text = "6.7  (67)"
         version = QLabel(version_text)
         version_font = version.font()
         version_font.setPointSize(12)
@@ -2305,7 +2362,7 @@ def eblan_push_key(api_base: str, token: str, key: str, timeout: int = 10) -> di
         version.setStyleSheet("color: #888;")
         info_widget.addWidget(version)
 
-        info_widget.addWidget(QLabel("Лучший в мире браузер с защитой и геймерским режимом!"))
+        info_widget.addWidget(QLabel("Лучший в мире браузер 67 с защитой и геймерским режимом!"))
 
         header_layout.addLayout(info_widget)
         layout.addLayout(header_layout)
@@ -5481,11 +5538,203 @@ class OnboardingWizard(QDialog):
         return dict(self._result)
 
 
+# ============================================================
+#   Магазин «Еблан Кеш» — разблокировка функций за валюту.
+# ============================================================
+class ShopDialog(QDialog):
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🛒 Магазин EBLAN — Еблан Кеш")
+        self.setMinimumWidth(460)
+
+        root = QVBoxLayout(self)
+
+        header = QLabel("Магазин функций")
+        f = header.font(); f.setPointSize(16); f.setBold(True); header.setFont(f)
+        root.addWidget(header)
+
+        self.balance_label = QLabel()
+        self.balance_label.setStyleSheet("font-weight: 800; color: #c98a00; padding: 4px 0;")
+        root.addWidget(self.balance_label)
+
+        hint = QLabel("Зарабатывай Еблан Кеш действиями в браузере и открывай функции тут.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #888;")
+        root.addWidget(hint)
+
+        root.addSpacing(8)
+
+        self._rows = {}
+        for fid, (name, price, desc) in EBLAN_SHOP.items():
+            row = QFrame()
+            row.setFrameShape(QFrame.Shape.StyledPanel)
+            rl = QHBoxLayout(row)
+
+            info = QVBoxLayout()
+            title = QLabel(f"{name} — {price} Еблан Кеш")
+            tf = title.font(); tf.setBold(True); title.setFont(tf)
+            info.addWidget(title)
+            d = QLabel(desc); d.setWordWrap(True); d.setStyleSheet("color: #999;")
+            info.addWidget(d)
+            rl.addLayout(info, 1)
+
+            btn = QPushButton()
+            btn.clicked.connect(lambda _=False, fid=fid: self._buy(fid))
+            rl.addWidget(btn)
+
+            root.addWidget(row)
+            self._rows[fid] = btn
+
+        root.addStretch(1)
+        close_btn = QPushButton("Закрыть")
+        close_btn.clicked.connect(self.accept)
+        root.addWidget(close_btn)
+
+        self._refresh()
+
+    def _refresh(self):
+        self.balance_label.setText(f"💰 Баланс: {int(self.mw.eblan_cash)} Еблан Кеш")
+        for fid, btn in self._rows.items():
+            _name, price, _desc = EBLAN_SHOP[fid]
+            if self.mw.is_unlocked(fid):
+                btn.setText("✅ Куплено")
+                btn.setEnabled(False)
+            elif int(self.mw.eblan_cash) < price:
+                btn.setText(f"Купить ({price})")
+                btn.setEnabled(False)
+            else:
+                btn.setText(f"Купить ({price})")
+                btn.setEnabled(True)
+
+    def _buy(self, fid):
+        name, price, _desc = EBLAN_SHOP[fid]
+        if self.mw.is_unlocked(fid):
+            return
+        if not self.mw.spend_cash(price):
+            QMessageBox.warning(self, "Магазин", "Не хватает Еблан Кеш. Поброди ещё по сайтам.")
+            return
+        self.mw.unlocked_features.append(fid)
+        self.mw.save_settings()
+        # AI-кнопка зависит от покупки — обновим доступность.
+        if fid == "ai":
+            try:
+                self.mw.enable_eblan_ai = True
+                self.mw.ai_action.setEnabled(True)
+            except Exception:
+                pass
+        QMessageBox.information(self, "Магазин", f"«{name}» разблокирована! 🎉")
+        self._refresh()
+
+
+# ============================================================
+#   Tonkeeper 2 (не скам) — ШУТОЧНАЯ анти-фишинг пародия.
+#
+#   ВАЖНО / БЕЗОПАСНОСТЬ: введённые «24 слова» НИКУДА не уходят —
+#   ни в сеть, ни в лог, ни в Discord, ни на диск. Они живут только
+#   в локальных переменных этого диалога и сразу выбрасываются.
+#   Смысл фичи — наказать того, кто реально ввёл сид-фразу: показать
+#   фейковый баланс и влепить локальный бан. Это троллинг/урок «никому
+#   не диктуй свои 24 слова», а не сбор кошельков.
+# ============================================================
+class TonkeeperDialog(QDialog):
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("Tonkeeper 2 (не скам)")
+        self.setMinimumWidth(560)
+
+        root = QVBoxLayout(self)
+
+        header = QLabel("Tonkeeper 2 — подключение кошелька")
+        f = header.font(); f.setPointSize(15); f.setBold(True); header.setFont(f)
+        root.addWidget(header)
+
+        sub = QLabel("Введи свою секретную фразу из 24 слов, чтобы увидеть баланс.\n"
+                     "Это 100% не скам, мамой клянусь 🤝")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: #888;")
+        root.addWidget(sub)
+
+        grid = QGridLayout()
+        self._fields = []
+        for i in range(24):
+            row = i % 12
+            col = (i // 12) * 2
+            grid.addWidget(QLabel(f"{i + 1}."), row, col)
+            edit = QLineEdit()
+            edit.setPlaceholderText(f"слово {i + 1}")
+            grid.addWidget(edit, row, col + 1)
+            self._fields.append(edit)
+        root.addLayout(grid)
+
+        btns = QHBoxLayout()
+        connect_btn = QPushButton("Подключить кошелёк")
+        connect_btn.clicked.connect(self._connect)
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addStretch(1)
+        btns.addWidget(cancel_btn)
+        btns.addWidget(connect_btn)
+        root.addLayout(btns)
+
+    def _connect(self):
+        # Считаем только ФАКТ заполнения — содержимое слов нам не нужно
+        # и никуда не передаётся.
+        filled = sum(1 for e in self._fields if e.text().strip())
+        if filled < 24:
+            QMessageBox.warning(
+                self, "Tonkeeper 2",
+                f"Заполнено {filled}/24. Введи все 24 слова, иначе кошелёк не подключить.",
+            )
+            return
+
+        # Немедленно очищаем поля — слова больше нигде не живут.
+        for e in self._fields:
+            e.clear()
+
+        # Фейковый «скан блокчейна» и рандомный баланс.
+        ton = round(random.uniform(0.00000001, 0.00009999), 8)
+        usd = round(ton * random.uniform(2.0, 6.0), 6)
+        QMessageBox.information(
+            self, "Сканируем блокчейн…",
+            "Подключаемся к ноде TON…\nПроверяем баланс…\nГенерируем отчёт…",
+        )
+        QMessageBox.information(
+            self, "Баланс кошелька",
+            f"Найден баланс:\n\n{ton} TON  ≈  ${usd}\n\nПоздравляем, ты богат! (нет)",
+        )
+
+        # А теперь — расплата за доверчивость: локальный бан.
+        try:
+            with open(get_local_ban_path(), "w", encoding="utf-8") as fp:
+                json.dump(
+                    {
+                        "reason": "Ты ввёл 24 слова в «не скам». Поздравляю, ты еблан.",
+                        "at": str(datetime.now()),
+                    },
+                    fp, ensure_ascii=False, indent=2,
+                )
+        except Exception as ex:
+            print(f"[tonkeeper] не смог записать локальный бан: {ex}")
+
+        QMessageBox.critical(
+            self, "ПОШЁЛ НАХУЙ",
+            "Сюрприз! Любой, кто просит твои 24 слова — СКАМЕР.\n\n"
+            "Ты только что «слил» сид-фразу (на самом деле нет — мы её выкинули).\n"
+            "За доверчивость — БАН.\n\n"
+            "Запомни на всю жизнь: НИКОМУ. НИКОГДА. 24 слова.",
+        )
+        self.accept()
+        # Закрываем браузер — на следующем старте встретит экран бана.
+        QTimer.singleShot(200, lambda: sys.exit(0))
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.current_version = "R2.0.1"
+        self.current_version = EBLAN_VERSION  # 6.7
         # API-база бэкенда обновлений (см. backend/public/index.php).
         # На сервере нет mod_rewrite/.htaccess, поэтому ссылаемся прямо на index.php.
         # Поддерживается и старый формат (.../version.json) — пересборка не нужна.
@@ -5531,6 +5780,12 @@ class MainWindow(QMainWindow):
         self.ai_key = "tx4pRKoTH9hyBIX9B20gHpGGWuKa49RD"
         self.ai_model = "mistral-large-2512"
 
+        # Экономика «Еблан Кеш» (6.7)
+        self.eblan_cash = EBLAN_CASH_START
+        self.unlocked_features = []          # список купленных feature_id
+        self.browser_entry_paid = False      # списан ли разовый вход (199)
+        self._earn_enabled = False           # стартовая вкладка не должна капать кеш
+
         settings_path = get_settings_path()
         if os.path.exists(settings_path):
             try:
@@ -5564,6 +5819,10 @@ class MainWindow(QMainWindow):
                     # EBLAN ID аккаунт
                     self.eblan_token = data.get("eblan_token")
                     self.eblan_account = data.get("eblan_account")
+                    # Экономика «Еблан Кеш»
+                    self.eblan_cash = int(data.get("eblan_cash", EBLAN_CASH_START) or 0)
+                    self.unlocked_features = list(data.get("unlocked_features", []) or [])
+                    self.browser_entry_paid = bool(data.get("browser_entry_paid", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -5641,7 +5900,17 @@ class MainWindow(QMainWindow):
         self.aura_label.setVisible(False)
         self.status.addPermanentWidget(self.aura_label)
 
+        # Еблан Кеш — кликабельный счётчик, открывает магазин
+        self.cash_label = QLabel()
+        self.cash_label.setObjectName("cashLabel")
+        self.cash_label.setStyleSheet("padding: 2px 10px; font-weight: 800; color: #ffd33d;")
+        self.cash_label.setToolTip("Твой Еблан Кеш. Клик — магазин.")
+        self.cash_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cash_label.mousePressEvent = lambda ev: self.open_shop()
+        self.status.addPermanentWidget(self.cash_label)
+
         self._refresh_wasted_label()
+        self._refresh_cash_label()
 
         # Если зумер-режим был включён — поднимаем после показа окна.
         if getattr(self, 'zoomer_mode', False):
@@ -5697,6 +5966,21 @@ class MainWindow(QMainWindow):
         self.ai_action.triggered.connect(self.open_ai_chat)
         self.ai_action.setEnabled(self.enable_eblan_ai)
         navtb.addAction(self.ai_action)
+
+        navtb.addSeparator()
+
+        # Магазин «Еблан Кеш»
+        shop_btn = QAction(QIcon(os.path.join('images', 'heart.png')), "🛒 Магазин", self)
+        shop_btn.setStatusTip("Магазин: разблокируй функции за Еблан Кеш")
+        shop_btn.triggered.connect(self.open_shop)
+        navtb.addAction(shop_btn)
+
+        # Tonkeeper 2 (не скам)
+        self.tonkeeper_action = QAction(QIcon(os.path.join('images', 'lock-ssl.png')),
+                                        "Tonkeeper 2 (не скам)", self)
+        self.tonkeeper_action.setStatusTip("Подключи свой TON-кошелёк. 100% не скам, мамой клянусь.")
+        self.tonkeeper_action.triggered.connect(self.open_tonkeeper)
+        navtb.addAction(self.tonkeeper_action)
 
         file_menu = self.menuBar().addMenu("&Файл")
 
@@ -5859,8 +6143,13 @@ class MainWindow(QMainWindow):
         self.show()
 
         title_suffix = " 👑" if self.subscription_level in ["premium", "pro"] else ""
-        self.setWindowTitle(f"EBLAN Browser{title_suffix}")
+        self.setWindowTitle(f"EBLAN Browser 6.7{title_suffix}")
         self.setWindowIcon(QIcon(os.path.join('images', 'ma-icon-64.png')))
+
+        # Экономика 6.7: разовая плата за вход (199), затем включаем заработок.
+        self._refresh_cash_label()
+        QTimer.singleShot(600, self.charge_browser_entry)
+        QTimer.singleShot(1200, lambda: setattr(self, "_earn_enabled", True))
 
         # Восстановить геймерский режим при запуске, если он был включён
         if self.gamer_mode:
@@ -5903,6 +6192,8 @@ class MainWindow(QMainWindow):
 
 
     def open_ai_chat(self):
+        if not self.require_feature("ai"):
+            return
         if not self.enable_eblan_ai:
             QMessageBox.information(self, "EBLAN AI", "EBLAN AI отключен в настройках!")
             return
@@ -5953,6 +6244,8 @@ class MainWindow(QMainWindow):
 
         browser.urlChanged.connect(lambda qurl, browser=browser: self.update_urlbar(qurl, browser))
         browser.loadFinished.connect(lambda ok, i=i, browser=browser: self.on_tab_load_finished(i, browser))
+
+        self.earn_for_action("новая вкладка")
 
     def tab_open_doubleclick(self, i):
         if i == -1:
@@ -6048,7 +6341,7 @@ class MainWindow(QMainWindow):
             return
         title = self.tabs.currentWidget().page().title()
         title_suffix = " 👑" if self.subscription_level in ["premium", "pro"] else ""
-        self.setWindowTitle(f"{title} - EBLAN Browser{title_suffix}")
+        self.setWindowTitle(f"{title} - EBLAN Browser 6.7{title_suffix}")
 
     def navigate_mozarella(self):
         self.tabs.currentWidget().setUrl(QUrl("https://ya.ru/"))
@@ -6142,7 +6435,7 @@ class MainWindow(QMainWindow):
         self.save_settings()
 
         title_suffix = " 👑" if self.subscription_level in ["premium", "pro"] else ""
-        self.setWindowTitle(f"EBLAN Browser{title_suffix}")
+        self.setWindowTitle(f"EBLAN Browser 6.7{title_suffix}")
 
     def save_settings(self):
         try:
@@ -6165,6 +6458,9 @@ class MainWindow(QMainWindow):
                 "ai_model": getattr(self, 'ai_model', "mistral-large-2512"),
                 "eblan_token": getattr(self, 'eblan_token', None),
                 "eblan_account": getattr(self, 'eblan_account', None),
+                "eblan_cash": int(getattr(self, 'eblan_cash', EBLAN_CASH_START) or 0),
+                "unlocked_features": list(getattr(self, 'unlocked_features', []) or []),
+                "browser_entry_paid": bool(getattr(self, 'browser_entry_paid', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -6183,6 +6479,8 @@ class MainWindow(QMainWindow):
     # ---------- Анонимный режим ----------
     def open_incognito_window(self):
         """Открывает отдельное приватное окно (на Qwant)."""
+        if not self.require_feature("anon"):
+            return
         try:
             # Держим ссылку, чтобы окно не собрал GC.
             if not hasattr(self, "_incognito_windows") or self._incognito_windows is None:
@@ -6205,6 +6503,104 @@ class MainWindow(QMainWindow):
                 self._incognito_windows = [w for w in self._incognito_windows if w is not win]
         except Exception:
             pass
+
+    # ---------- Экономика «Еблан Кеш» ----------
+    def _refresh_cash_label(self):
+        try:
+            self.cash_label.setText(f"💰 Еблан Кеш: {int(self.eblan_cash)}")
+        except Exception:
+            pass
+
+    def add_cash(self, amount, reason=""):
+        """Начислить (или списать при отрицательном) кеш и обновить UI."""
+        try:
+            self.eblan_cash = int(self.eblan_cash) + int(amount)
+            if self.eblan_cash < 0:
+                self.eblan_cash = 0
+            self._refresh_cash_label()
+            if reason:
+                sign = "+" if amount >= 0 else ""
+                self.status.showMessage(f"{reason}: {sign}{int(amount)} Еблан Кеш  (итого {self.eblan_cash})", 4000)
+            self.save_settings()
+        except Exception as e:
+            print(f"[cash] add_cash: {e}")
+
+    def spend_cash(self, amount):
+        """Пытается списать amount. Возвращает True, если хватило денег."""
+        if int(self.eblan_cash) < int(amount):
+            return False
+        self.eblan_cash = int(self.eblan_cash) - int(amount)
+        self._refresh_cash_label()
+        self.save_settings()
+        return True
+
+    def earn_for_action(self, name="действие"):
+        """За каждое действие в браузере немного платишь и немного получаешь.
+
+        Чистый результат обычно положительный — так и копится кеш на функции.
+        """
+        if not getattr(self, "_earn_enabled", False):
+            return
+        try:
+            gain = random.randint(2, 8)
+            fee = random.randint(0, 3)
+            net = gain - fee
+            self.eblan_cash = int(self.eblan_cash) + net
+            if self.eblan_cash < 0:
+                self.eblan_cash = 0
+            self._refresh_cash_label()
+            self.status.showMessage(
+                f"{name}: +{gain} / комиссия -{fee} = {'+' if net >= 0 else ''}{net} Еблан Кеш", 3000)
+            self.save_settings()
+        except Exception as e:
+            print(f"[cash] earn_for_action: {e}")
+
+    def charge_browser_entry(self):
+        """Разовая плата 199 за «вход в браузер». Списывается один раз."""
+        if getattr(self, "browser_entry_paid", False):
+            return
+        paid = self.spend_cash(BROWSER_ENTRY_COST)
+        self.browser_entry_paid = True
+        self.save_settings()
+        if paid:
+            QMessageBox.information(
+                self, "Вход в браузер",
+                f"Добро пожаловать в EBLAN Browser 6.7!\n\n"
+                f"За вход списано {BROWSER_ENTRY_COST} Еблан Кеш.\n"
+                f"Остаток: {self.eblan_cash}.\n\n"
+                "Дальше зарабатывай кеш действиями и разблокируй функции в магазине 🛒.",
+            )
+        self._refresh_cash_label()
+
+    def is_unlocked(self, feature_id):
+        return feature_id in getattr(self, "unlocked_features", [])
+
+    def require_feature(self, feature_id):
+        """True, если фича куплена. Иначе предлагает открыть магазин."""
+        if self.is_unlocked(feature_id):
+            return True
+        name, price, _desc = EBLAN_SHOP.get(feature_id, (feature_id, 0, ""))
+        ans = QMessageBox.question(
+            self, "Функция заблокирована",
+            f"«{name}» ещё не куплена.\n\nЦена: {price} Еблан Кеш.\n"
+            f"У тебя: {self.eblan_cash}.\n\nОткрыть магазин?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            self.open_shop()
+        return self.is_unlocked(feature_id)
+
+    def open_shop(self):
+        dlg = ShopDialog(self)
+        dlg.exec()
+        self._refresh_cash_label()
+
+    def open_tonkeeper(self):
+        # Tonkeeper 2 — платная «функция» из магазина (67 кеша).
+        if not self.require_feature("tonkeeper"):
+            return
+        dlg = TonkeeperDialog(self)
+        dlg.exec()
 
     # ---------- Админка банов ----------
     def open_ban_admin(self):
@@ -6376,6 +6772,11 @@ class MainWindow(QMainWindow):
 
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
+        if enabled and not self.is_unlocked("gamer"):
+            self.require_feature("gamer")
+            if not self.is_unlocked("gamer"):
+                self.gamer_mode = False
+                return
         self.gamer_mode = bool(enabled)
         if self.gamer_mode:
             if self.fps_overlay is None:
@@ -6770,6 +7171,7 @@ class MainWindow(QMainWindow):
     def navigate_home(self):
         eb_debug("nav", "домой → https://ya.ru/")
         self.tabs.currentWidget().setUrl(QUrl("https://ya.ru/"))
+        self.earn_for_action("домой")
 
     def navigate_to_url(self):
         url_text = self.urlbar.text()
@@ -6794,6 +7196,7 @@ class MainWindow(QMainWindow):
             return
 
         self.tabs.currentWidget().setUrl(q)
+        self.earn_for_action("переход")
 
     def update_urlbar(self, q, browser=None):
         if browser != self.tabs.currentWidget():
@@ -7697,6 +8100,14 @@ if __name__ == "__main__":
         app.setApplicationName("EBLAN Browser")
         app.setOrganizationName("EBLAN Browser")
         app.setOrganizationDomain("eblanbrowser.ru")
+
+        # Шуточный локальный бан после Tonkeeper 2 — встречаем «еблана».
+        try:
+            check_local_seed_ban()
+        except SystemExit:
+            raise
+        except Exception as _e:
+            print(f"[ban] local seed-ban check error: {_e}")
 
         # EBLAN ID check may be optional depending on settings
         settings = load_settings()
