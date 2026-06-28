@@ -618,6 +618,13 @@ class AdOverlay(QWidget):
         lay.addStretch(1)
 
     def _close(self):
+        # Чистим ссылку в родителе, чтобы не осталось «висячего» удалённого объекта.
+        try:
+            par = self.parent()
+            if par is not None and getattr(par, "_ad_overlay", None) is self:
+                par._ad_overlay = None
+        except Exception:
+            pass
         try:
             self.close(); self.deleteLater()
         except Exception:
@@ -647,6 +654,18 @@ def load_overlay_pixmap():
             if not pm.isNull():
                 return pm
     return QPixmap(OVERLAY_IMAGE_FALLBACK)
+
+
+def is_widget_alive_visible(w):
+    """True, если виджет жив (C++ объект не удалён через deleteLater) и видим.
+
+    Защищает от RuntimeError: 'wrapped C/C++ object has been deleted' —
+    бывает, когда оверлей закрылся, а Python-ссылка ещё осталась.
+    """
+    try:
+        return w is not None and w.isVisible()
+    except RuntimeError:
+        return False
 
 
 class ImageOverlay(QWidget):
@@ -8075,7 +8094,7 @@ class MainWindow(QMainWindow):
         """Залп конфетти из эмодзи + (опц.) сообщение в статусбар."""
         try:
             ov = ConfettiOverlay(self)
-            self._confetti = [c for c in getattr(self, '_confetti', []) if c.isVisible()]
+            self._confetti = [c for c in getattr(self, '_confetti', []) if is_widget_alive_visible(c)]
             self._confetti.append(ov)
         except Exception as e:
             eb_debug("zoomer", f"confetti error: {e}")
@@ -8249,7 +8268,7 @@ class MainWindow(QMainWindow):
     def matrix_rain(self):
         try:
             ov = MatrixOverlay(self)
-            self._chaos_overlays = [o for o in self._chaos_overlays if o.isVisible()]
+            self._chaos_overlays = [o for o in self._chaos_overlays if is_widget_alive_visible(o)]
             self._chaos_overlays.append(ov)
         except Exception:
             pass
@@ -8554,8 +8573,9 @@ class MainWindow(QMainWindow):
 
     def _show_ad(self):
         # Не плодим окна: если предыдущее ещё открыто — пропускаем.
-        if self._ad_overlay is not None and self._ad_overlay.isVisible():
+        if is_widget_alive_visible(self._ad_overlay):
             return
+        self._ad_overlay = None
         content = random.choice(AD_NAG_CONTENTS)
         try:
             self._ad_overlay = AdOverlay(self, content)
@@ -8639,14 +8659,14 @@ class MainWindow(QMainWindow):
 
     def moveEvent(self, event):
         super().moveEvent(event)
-        if self.fps_overlay is not None and self.fps_overlay.isVisible():
+        if is_widget_alive_visible(self.fps_overlay):
             self._position_fps_overlay()
         if getattr(self, 'image_overlay', None) is not None:
             self._position_image_overlay()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if self.fps_overlay is not None and self.fps_overlay.isVisible():
+        if is_widget_alive_visible(self.fps_overlay):
             self._position_fps_overlay()
         if getattr(self, 'suffer_overlay', None) is not None:
             self._position_suffer_overlay()
