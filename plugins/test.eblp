@@ -1,0 +1,70 @@
+// Example EBLAN Browser Extension
+// Save as: %APPDATA%/EBLAN/extensions/example.eblp (Windows)
+// Or: ~/etc/eblan/extensions/example.eblp (Linux)
+
+console.log('%cEBLAN Extension Loaded!', 'color: #ff00ff; font-weight: bold; font-size: 14px;');
+
+// Modify page elements
+window.addEventListener('load', () => {
+    const header = document.querySelector('header');
+    if (header) {
+        header.style.borderBottom = '3px solid #ff00ff';
+    }
+    console.log('Page modified by extension');
+});
+
+// Add custom global function
+window.eblanExtension = {
+    version: '1.0.0',
+    getPageInfo: () => ({
+        title: document.title,
+        url: window.location.href,
+        hostname: window.location.hostname
+    }),
+    highlight: (selector) => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            el.style.outline = '2px solid #ffff00';
+            el.style.backgroundColor = 'rgba(255, 255, 0, 0.1)';
+        });
+    }
+};
+
+console.log('Global object eblanExtension available');
+
+---
+
+Meta
+name: Example Extension
+version: 1.0.0
+author: EBLAN Soft
+description: Example extension with JS, CSS and metadata
+
+---
+
+CSS
+/* Extension styles */
+.eblan-injected {
+    border-left: 4px solid #ff00ff !important;
+    padding-left: 8px !important;
+}
+
+/* Highlight all links */
+a {
+    transition: all 0.2s ease;
+}
+
+a:hover {
+    color: #ff00ff !important;
+    text-decoration: underline !important;
+}
+
+/* Add glowing effect to buttons */
+button {
+    box-shadow: 0 0 10px rgba(255, 0, 255, 0.3) !important;
+    transition: box-shadow 0.2s ease !important;
+}
+
+button:hover {
+    box-shadow: 0 0 20px rgba(255, 0, 255, 0.6) !important;
+}

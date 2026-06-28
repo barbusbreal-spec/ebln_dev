@@ -1,0 +1,33 @@
+{
+  "schema": 2,
+  "updated_at": "2026-04-22",
+  "branches": {
+    "main": {
+      "version": "R1.0.101",
+      "name": "Release 1.0.101",
+      "changelog": "Первая публичная сборка.\n- База браузера\n- EBLAN AI\n- Геймер-режим\n- Темы Ecss\n- Счётчик проёба",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.0.101.zip",
+      "force": false,
+      "published_at": "2026-04-01",
+      "min_supported": "R1.0.0"
+    },
+    "public_beta": {
+      "version": "R1.1.0-beta.3",
+      "name": "Public Beta 1.1.0-beta.3",
+      "changelog": "Публичная бета.\n- Новая система обновлений через backend\n- Настройки в стиле Firefox\n- FPS overlay\n- Может взрываться",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.1.0-beta.3.zip",
+      "force": true,
+      "published_at": "2026-04-20",
+      "min_supported": "R1.0.0"
+    },
+    "closed_beta": {
+      "version": "R1.2.0-alpha.1",
+      "name": "Closed Alpha 1.2.0",
+      "changelog": "Закрытая альфа. Доступ по инвайту.",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.2.0-alpha.1.zip",
+      "force": true,
+      "published_at": "2026-04-22",
+      "min_supported": "R1.0.100"
+    }
+  }
+}

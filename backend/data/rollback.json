@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "versions": [
+    {
+      "version": "R1.0.101",
+      "name": "Release 1.0.101",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.0.101.zip",
+      "published_at": "2026-04-01",
+      "supported": true
+    },
+    {
+      "version": "R1.0.100",
+      "name": "Release 1.0.100",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.0.100.zip",
+      "published_at": "2026-03-15",
+      "supported": true
+    },
+    {
+      "version": "R1.0.99",
+      "name": "Release 1.0.99 (legacy)",
+      "download_url": "https://twgood.serv00.net/browser/dl/Eblan_R1.0.99.zip",
+      "published_at": "2026-02-01",
+      "supported": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+# EBLAN Update Backend — конфиг для nginx.
+#
+# ВАЖНО: nginx НЕ читает .htaccess (это Apache-only). Поэтому красивые URL
+# /api/<route> и /admin на nginx нужно описывать здесь, иначе сервер отдаёт
+# сырой «403 Forbidden» на /api/check_ban и прочие.
+#
+# Клиент EBLAN и без этого работает: при 403 он сам падает на прямую точку
+# входа index.php?route=<route>. Этот конфиг нужен лишь чтобы красивые URL
+# /api/* реально существовали на сервере.
+#
+# DocumentRoot должен указывать на backend/public/.
+
+server {
+    listen 80;
+    server_name update.example.com;
+    root /var/www/eblan/backend/public;
+
+    index index.php;
+
+    # /admin → admin.php
+    location = /admin {
+        try_files $uri /admin.php;
+    }
+
+    # /api/<name> → index.php?route=<name> (аналог .htaccess mod_rewrite)
+    location ~ ^/api/([a-zA-Z_-]+)/?$ {
+        try_files $uri /index.php?route=$1&$args;
+    }
+
+    # Закрываем data/ от прямого доступа (аналог backend/data/.htaccess)
+    location ^~ /../data/ { deny all; return 403; }
+    location ~ /\.        { deny all; }   # .htaccess, .git и т.п.
+
+    # PHP-FPM
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php-fpm.sock;   # подставь свой сокет/порт
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+}

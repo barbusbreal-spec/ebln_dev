@@ -1,0 +1,22 @@
+# EBLAN Update Backend — удобные URL.
+# /api/ping, /api/manifest, /api/check?..., /api/rollback, /admin
+# Всё уходит в index.php, который разбирает ?route=...
+
+RewriteEngine On
+
+# /admin (без расширения) -> admin.php
+RewriteRule ^admin/?$ admin.php [L]
+
+# /api/<name>[...] -> index.php?route=<name>&...
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/([a-zA-Z_-]+)/?$ index.php?route=$1 [QSA,L]
+
+# Корень → manifest
+DirectoryIndex index.php
+
+# Мелочь: кешировать статику
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType application/json "access plus 1 minute"
+</IfModule>
