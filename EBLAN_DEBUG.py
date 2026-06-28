@@ -6113,6 +6113,202 @@ class TonkeeperDialog(QDialog):
         QTimer.singleShot(200, lambda: sys.exit(0))
 
 
+# ============================================================
+#   Бурмалда-режим: SFW-парсер e621 (ТОЛЬКО rating:s).
+#
+#   Жёсткие ограничения по контенту:
+#     - в запрос ВСЕГДА добавляется rating:s (safe);
+#     - пользовательские rating:/order: токены вырезаются (нельзя обойти);
+#     - клиентская перепроверка: показываем только посты с rating == "s";
+#     - блок-лист тегов — пост с любым из них отбрасывается.
+#   Никакого NSFW. Источник — публичный JSON API e621.
+# ============================================================
+E621_API_URL = "https://e621.net/posts.json"
+E621_USER_AGENT = "EblanBrowser/6.7 Burmalda-SFW (safe-only parser)"
+# Теги, при наличии которых пост НЕ показывается (доп. защита поверх rating:s).
+E621_BLOCKED_TAGS = {
+    "young", "cub", "loli", "shota", "child", "children", "toddler", "baby",
+    "diaper", "gore", "scat", "watersports", "feral_on_feral_cub",
+}
+
+
+def _e621_sanitize_tags(raw):
+    """Готовит безопасный список тегов: убирает попытки задать rating/order/status."""
+    out = []
+    for tok in (raw or "").split():
+        t = tok.strip().lower()
+        if not t:
+            continue
+        # Не даём переопределить рейтинг/сортировку/статус.
+        if t.startswith(("rating:", "order:", "status:", "-rating:")):
+            continue
+        # Не даём вручную запрашивать заблокированные теги.
+        if t.lstrip("-~") in E621_BLOCKED_TAGS:
+            continue
+        out.append(t)
+    return out[:6]  # бережём лимит тегов анонимного поиска
+
+
+def fetch_e621_safe(raw_tags, limit=12):
+    """Возвращает список безопасных постов e621 (rating:s). Кидает исключение при сети."""
+    tags = _e621_sanitize_tags(raw_tags)
+    tags.append("rating:s")  # принудительно safe
+    params = {"tags": " ".join(tags), "limit": max(1, min(int(limit), 40))}
+    r = requests.get(
+        E621_API_URL, params=params,
+        headers={"User-Agent": E621_USER_AGENT, "Accept": "application/json"},
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    posts = data.get("posts", []) if isinstance(data, dict) else []
+    safe = []
+    for p in posts:
+        try:
+            if p.get("rating") != "s":      # ещё раз проверяем на клиенте
+                continue
+            tag_dict = p.get("tags", {}) or {}
+            all_tags = set()
+            for cat in tag_dict.values():
+                if isinstance(cat, list):
+                    all_tags.update(t.lower() for t in cat)
+            if all_tags & E621_BLOCKED_TAGS:  # блок-лист
+                continue
+            prev = (p.get("preview") or {}).get("url")
+            sample = (p.get("sample") or {}).get("url")
+            url = prev or sample
+            if not url:
+                continue
+            safe.append({
+                "id": p.get("id"),
+                "preview_url": url,
+                "sample_url": sample or url,
+                "artist": ", ".join((tag_dict.get("artist") or [])[:2]) or "?",
+                "summary": " ".join((tag_dict.get("general") or [])[:6]),
+            })
+        except Exception:
+            continue
+    return safe
+
+
+class BurmaldaDialog(QDialog):
+    """Галерея SFW-картинок из e621 (только rating:s)."""
+
+    _results_ready = pyqtSignal(list)
+    _fetch_failed = pyqtSignal(str)
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🐾 Бурмалда — e621 (SFW, только rating:s)")
+        self.setMinimumSize(720, 560)
+        self._busy = False
+
+        root = QVBoxLayout(self)
+
+        warn = QLabel("Только безопасные посты (rating: safe). NSFW отключён намертво.")
+        warn.setStyleSheet("color: #2e7d32; font-weight: 700;")
+        root.addWidget(warn)
+
+        bar = QHBoxLayout()
+        self.tags_input = QLineEdit()
+        self.tags_input.setPlaceholderText("теги через пробел (например: wolf forest) — rating добавится сам")
+        self.tags_input.returnPressed.connect(self._search)
+        self.search_btn = QPushButton("Парсить 🐾")
+        self.search_btn.clicked.connect(self._search)
+        bar.addWidget(self.tags_input, 1)
+        bar.addWidget(self.search_btn)
+        root.addLayout(bar)
+
+        self.status = QLabel("Введи теги и жми «Парсить».")
+        self.status.setStyleSheet("color: #888;")
+        root.addWidget(self.status)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self._grid_host = QWidget()
+        self.grid = QGridLayout(self._grid_host)
+        self.scroll.setWidget(self._grid_host)
+        root.addWidget(self.scroll, 1)
+
+        self._results_ready.connect(self._on_results)
+        self._fetch_failed.connect(self._on_error)
+
+    def _search(self):
+        if self._busy:
+            return
+        self._busy = True
+        self.search_btn.setEnabled(False)
+        self.status.setText("Парсим e621 (safe)… 🐾")
+        raw = self.tags_input.text()
+
+        def work():
+            try:
+                posts = fetch_e621_safe(raw, limit=12)
+                items = []
+                for p in posts:
+                    try:
+                        rr = requests.get(
+                            p["preview_url"],
+                            headers={"User-Agent": E621_USER_AGENT},
+                            timeout=15,
+                        )
+                        if rr.status_code == 200 and rr.content:
+                            items.append({**p, "bytes": rr.content})
+                        time.sleep(0.2)  # вежливо к API
+                    except Exception:
+                        continue
+                self._results_ready.emit(items)
+            except Exception as e:
+                self._fetch_failed.emit(str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _clear_grid(self):
+        while self.grid.count():
+            it = self.grid.takeAt(0)
+            w = it.widget()
+            if w is not None:
+                w.deleteLater()
+
+    def _on_results(self, items):
+        self._busy = False
+        self.search_btn.setEnabled(True)
+        self._clear_grid()
+        if not items:
+            self.status.setText("Ничего безопасного не нашлось 🗿 попробуй другие теги.")
+            return
+        self.status.setText(f"Нашёл {len(items)} безопасных постов 🐾")
+        cols = 3
+        for idx, it in enumerate(items):
+            pm = QPixmap()
+            pm.loadFromData(it["bytes"])
+            if pm.isNull():
+                continue
+            cell = QVBoxLayout()
+            thumb = QLabel()
+            thumb.setPixmap(pm.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation))
+            thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cap = QLabel(f"#{it['id']} · {it['artist']}")
+            cap.setStyleSheet("color: #999; font-size: 10px;")
+            cap.setWordWrap(True)
+            host = QWidget()
+            hl = QVBoxLayout(host)
+            hl.addWidget(thumb)
+            hl.addWidget(cap)
+            self.grid.addWidget(host, idx // cols, idx % cols)
+        try:
+            self.mw.earn_for_action("бурмалда-парс")
+        except Exception:
+            pass
+
+    def _on_error(self, msg):
+        self._busy = False
+        self.search_btn.setEnabled(True)
+        self.status.setText(f"Ошибка парсинга: {msg}")
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -6592,6 +6788,13 @@ class MainWindow(QMainWindow):
         wild_action.setStatusTip("РЕЗКОЕ мигание и вращение. Сначала предупреждение. Клик/ESC — стоп.")
         wild_action.triggered.connect(self.start_wild_mode)
         chaos_menu.addAction(wild_action)
+
+        # ---- Меню «🐾 Бурмалда» (e621 SFW-парсер) ----
+        burmalda_menu = self.menuBar().addMenu("🐾 &Бурмалда")
+        burmalda_action = QAction("🐾 Бурмалда — e621 парсер (SFW, rating:s)", self)
+        burmalda_action.setStatusTip("Галерея ТОЛЬКО безопасных постов e621 (rating: safe). NSFW отключён.")
+        burmalda_action.triggered.connect(self.open_burmalda)
+        burmalda_menu.addAction(burmalda_action)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -7116,6 +7319,11 @@ class MainWindow(QMainWindow):
         if not self.require_feature("tonkeeper"):
             return
         dlg = TonkeeperDialog(self)
+        dlg.exec()
+
+    def open_burmalda(self):
+        """Бурмалда-режим: SFW-парсер e621 (только rating:s)."""
+        dlg = BurmaldaDialog(self)
         dlg.exec()
 
     # ---------- День Ебланов (6 июля) ----------
