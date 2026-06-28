@@ -797,6 +797,18 @@ EBLAN_SHOP = {
 }
 
 
+# --- День Ебланов: 6 июля (6.7) ---------------------------------
+EBLAN_DAY = (7, 6)              # (месяц, день) — 6 июля
+EBLAN_DAY_BONUS = 670          # годовой подарок кеша в этот день
+EBLAN_DAY_DISCOUNT = 0.33      # цены в магазине -67% в этот день
+
+
+def is_eblan_day(dt=None):
+    """True, если сегодня (или dt) — 6 июля, День Ебланов."""
+    dt = dt or datetime.now()
+    return (dt.month, dt.day) == EBLAN_DAY
+
+
 def get_local_ban_path():
     """Файл-маркер локального «бана» (шуточный, ставится Tonkeeper-ом)."""
     return os.path.join(os.path.dirname(get_settings_path()), "eblan_local_ban.json")
@@ -5563,16 +5575,25 @@ class ShopDialog(QDialog):
         hint.setStyleSheet("color: #888;")
         root.addWidget(hint)
 
+        if is_eblan_day():
+            sale = QLabel("🎉 ДЕНЬ ЕБЛАНОВ: скидка −67% на всё! 🥳")
+            sale.setStyleSheet("color: #e0245e; font-weight: 800; padding: 4px 0;")
+            root.addWidget(sale)
+
         root.addSpacing(8)
 
         self._rows = {}
-        for fid, (name, price, desc) in EBLAN_SHOP.items():
+        for fid, (name, base_price, desc) in EBLAN_SHOP.items():
+            price = self.mw.shop_price(fid)
             row = QFrame()
             row.setFrameShape(QFrame.Shape.StyledPanel)
             rl = QHBoxLayout(row)
 
             info = QVBoxLayout()
-            title = QLabel(f"{name} — {price} Еблан Кеш")
+            if price != base_price:
+                title = QLabel(f"{name} — {price} Еблан Кеш  (было {base_price})")
+            else:
+                title = QLabel(f"{name} — {price} Еблан Кеш")
             tf = title.font(); tf.setBold(True); title.setFont(tf)
             info.addWidget(title)
             d = QLabel(desc); d.setWordWrap(True); d.setStyleSheet("color: #999;")
@@ -5596,7 +5617,7 @@ class ShopDialog(QDialog):
     def _refresh(self):
         self.balance_label.setText(f"💰 Баланс: {int(self.mw.eblan_cash)} Еблан Кеш")
         for fid, btn in self._rows.items():
-            _name, price, _desc = EBLAN_SHOP[fid]
+            price = self.mw.shop_price(fid)
             if self.mw.is_unlocked(fid):
                 btn.setText("✅ Куплено")
                 btn.setEnabled(False)
@@ -5608,7 +5629,8 @@ class ShopDialog(QDialog):
                 btn.setEnabled(True)
 
     def _buy(self, fid):
-        name, price, _desc = EBLAN_SHOP[fid]
+        name = EBLAN_SHOP[fid][0]
+        price = self.mw.shop_price(fid)
         if self.mw.is_unlocked(fid):
             return
         if not self.mw.spend_cash(price):
@@ -5785,6 +5807,7 @@ class MainWindow(QMainWindow):
         self.unlocked_features = []          # список купленных feature_id
         self.browser_entry_paid = False      # списан ли разовый вход (199)
         self._earn_enabled = False           # стартовая вкладка не должна капать кеш
+        self.eblan_day_year = 0              # год, когда уже выдан подарок Дня Ебланов
 
         settings_path = get_settings_path()
         if os.path.exists(settings_path):
@@ -5823,6 +5846,7 @@ class MainWindow(QMainWindow):
                     self.eblan_cash = int(data.get("eblan_cash", EBLAN_CASH_START) or 0)
                     self.unlocked_features = list(data.get("unlocked_features", []) or [])
                     self.browser_entry_paid = bool(data.get("browser_entry_paid", False))
+                    self.eblan_day_year = int(data.get("eblan_day_year", 0) or 0)
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -6047,6 +6071,11 @@ class MainWindow(QMainWindow):
         beta_settings_action.triggered.connect(self.open_beta_settings)
         help_menu.addAction(beta_settings_action)
 
+        eblan_day_action = QAction(QIcon(os.path.join('images', 'heart.png')), "🎉 День Ебланов", self)
+        eblan_day_action.setStatusTip("День Ебланов — 6 июля (6.7): подарок, скидки, конфетти")
+        eblan_day_action.triggered.connect(self.show_eblan_day)
+        help_menu.addAction(eblan_day_action)
+
         # ID menu
         id_menu = self.menuBar().addMenu("&DEBUG")
         self.require_id_action = QAction("Требовать EBLAN ID при запуске", self)
@@ -6150,6 +6179,10 @@ class MainWindow(QMainWindow):
         self._refresh_cash_label()
         QTimer.singleShot(600, self.charge_browser_entry)
         QTimer.singleShot(1200, lambda: setattr(self, "_earn_enabled", True))
+
+        # День Ебланов (6 июля) — праздничный режим при запуске.
+        if is_eblan_day():
+            QTimer.singleShot(1500, self.celebrate_eblan_day)
 
         # Восстановить геймерский режим при запуске, если он был включён
         if self.gamer_mode:
@@ -6461,6 +6494,7 @@ class MainWindow(QMainWindow):
                 "eblan_cash": int(getattr(self, 'eblan_cash', EBLAN_CASH_START) or 0),
                 "unlocked_features": list(getattr(self, 'unlocked_features', []) or []),
                 "browser_entry_paid": bool(getattr(self, 'browser_entry_paid', False)),
+                "eblan_day_year": int(getattr(self, 'eblan_day_year', 0) or 0),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -6545,6 +6579,8 @@ class MainWindow(QMainWindow):
             gain = random.randint(2, 8)
             fee = random.randint(0, 3)
             net = gain - fee
+            if is_eblan_day():
+                net *= 2  # ⚡ удвоенный заработок в День Ебланов
             self.eblan_cash = int(self.eblan_cash) + net
             if self.eblan_cash < 0:
                 self.eblan_cash = 0
@@ -6579,7 +6615,8 @@ class MainWindow(QMainWindow):
         """True, если фича куплена. Иначе предлагает открыть магазин."""
         if self.is_unlocked(feature_id):
             return True
-        name, price, _desc = EBLAN_SHOP.get(feature_id, (feature_id, 0, ""))
+        name = EBLAN_SHOP.get(feature_id, (feature_id, 0, ""))[0]
+        price = self.shop_price(feature_id)
         ans = QMessageBox.question(
             self, "Функция заблокирована",
             f"«{name}» ещё не куплена.\n\nЦена: {price} Еблан Кеш.\n"
@@ -6601,6 +6638,66 @@ class MainWindow(QMainWindow):
             return
         dlg = TonkeeperDialog(self)
         dlg.exec()
+
+    # ---------- День Ебланов (6 июля) ----------
+    def shop_price(self, fid):
+        """Цена функции с учётом праздничной скидки Дня Ебланов."""
+        base = EBLAN_SHOP.get(fid, (fid, 0, ""))[1]
+        if is_eblan_day():
+            import math
+            return max(1, int(math.ceil(base * EBLAN_DAY_DISCOUNT)))
+        return base
+
+    def celebrate_eblan_day(self, manual=False):
+        """Праздничный режим 6 июля: подарок кеша, конфетти, плюшки."""
+        year = datetime.now().year
+        first_today = (self.eblan_day_year != year)
+
+        # Праздничный заголовок окна на эту сессию.
+        try:
+            self.setWindowTitle("🎉 EBLAN Browser 6.7 — С ДНЁМ ЕБЛАНОВ! 🎉")
+        except Exception:
+            pass
+
+        # Залп конфетти.
+        try:
+            self.zoomer_burst("🎉 С ДНЁМ ЕБЛАНОВ! 6.7 🥳🎂🗿")
+            for k in range(1, 4):
+                QTimer.singleShot(k * 450, lambda: self.zoomer_burst(""))
+        except Exception:
+            pass
+
+        if first_today:
+            # Годовой подарок — один раз за этот год.
+            self.eblan_day_year = year
+            self.add_cash(EBLAN_DAY_BONUS, "🎁 Подарок Дня Ебланов")
+            QMessageBox.information(
+                self, "🎉 День Ебланов!",
+                "Сегодня 6 июля — ДЕНЬ ЕБЛАНОВ (6.7)!\n\n"
+                f"🎁 Лови подарок: +{EBLAN_DAY_BONUS} Еблан Кеш.\n"
+                "🛒 Весь магазин сегодня со скидкой −67%.\n"
+                "⚡ Заработок за действия удвоен.\n\n"
+                "Гуляй, еблан, это твой день! 🗿🥳",
+            )
+        elif manual:
+            QMessageBox.information(
+                self, "🎉 День Ебланов!",
+                "С Днём Ебланов (6.7)! 🥳\n\n"
+                "Подарок ты уже забрал в этом году, но скидка −67% в магазине\n"
+                "и удвоенный заработок действуют весь день. Празднуй! 🗿",
+            )
+
+    def show_eblan_day(self):
+        """Пункт меню: показать праздник или сообщить, когда он будет."""
+        if is_eblan_day():
+            self.celebrate_eblan_day(manual=True)
+        else:
+            QMessageBox.information(
+                self, "День Ебланов",
+                "День Ебланов празднуется 6 июля (6.7).\n\n"
+                "В этот день: подарок +670 Еблан Кеш, скидка −67% в магазине\n"
+                "и удвоенный заработок. Жди праздника, еблан! 🗓️🗿",
+            )
 
     # ---------- Админка банов ----------
     def open_ban_admin(self):
