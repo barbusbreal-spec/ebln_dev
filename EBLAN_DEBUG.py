@@ -453,6 +453,135 @@ class SufferOverlay(QWidget):
             pass
 
 
+class MatrixOverlay(QWidget):
+    """Зелёный матрица-дождь поверх окна. Клик-сквозной, сам себя закрывает."""
+
+    GLYPHS = "01アイウエオカキ㐀67ﾊﾋﾌﾍﾎ$#%&@67"
+
+    def __init__(self, parent, duration_ms=4200):
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        try:
+            if parent is not None:
+                self.setGeometry(parent.geometry())
+        except Exception:
+            self.resize(900, 600)
+        import random as _r
+        cols = max(10, self.width() // 16)
+        self._cols = cols
+        self._drops = [_r.randint(-40, 0) for _ in range(cols)]
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._step)
+        self._timer.start(60)
+        QTimer.singleShot(int(duration_ms), self._finish)
+        self.show(); self.raise_()
+
+    def _step(self):
+        import random as _r
+        h = max(self.height(), 1)
+        for i in range(self._cols):
+            self._drops[i] += 1
+            if self._drops[i] * 16 > h and _r.random() > 0.95:
+                self._drops[i] = 0
+        self.update()
+
+    def _finish(self):
+        try:
+            self._timer.stop()
+        except Exception:
+            pass
+        self.close(); self.deleteLater()
+
+    def paintEvent(self, event):
+        import random as _r
+        try:
+            p = QPainter(self)
+            f = QFont("Courier New", 13); p.setFont(f)
+            for i in range(self._cols):
+                x = i * 16
+                y = self._drops[i] * 16
+                p.setPen(QColor(180, 255, 180))
+                p.drawText(x, y, _r.choice(self.GLYPHS))
+                p.setPen(QColor(0, 200, 0))
+                for k in range(1, 8):
+                    p.drawText(x, y - k * 16, _r.choice(self.GLYPHS))
+            p.end()
+        except Exception:
+            pass
+
+
+class BsodOverlay(QWidget):
+    """Фейковый синий экран смерти. Без мигания. Закрывается по клику."""
+
+    def __init__(self, parent):
+        super().__init__(parent, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        try:
+            self.setGeometry(parent.geometry())
+        except Exception:
+            self.resize(900, 600)
+        self.setStyleSheet("background: #0078d7;")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(80, 80, 80, 80)
+        txt = QLabel(
+            ":(\n\n"
+            "На твоём ПК возникла проблема, и теперь ты еблан.\n"
+            "Мы соберём твою ауру и Еблан Кеш, а потом перезагрузим\n"
+            "твоё чувство собственного достоинства.\n\n"
+            "67% завершено\n\n"
+            "Код ошибки: SIX_SEVEN_FOREVER\n\n"
+            "(кликни в любом месте, чтобы продолжить страдания)"
+        )
+        txt.setStyleSheet("color: white; font-size: 18px; font-family: 'Segoe UI', sans-serif;")
+        big = QLabel(":(")
+        big.setStyleSheet("color: white; font-size: 90px;")
+        lay.addWidget(big)
+        lay.addWidget(txt)
+        lay.addStretch(1)
+
+    def mousePressEvent(self, ev):
+        self.close(); self.deleteLater()
+
+
+class JumpscareOverlay(QWidget):
+    """Мягкий джампскейр: большой 🗿 на пол-секунды. Без звука."""
+
+    def __init__(self, parent, duration_ms=700):
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        try:
+            self.setGeometry(parent.geometry())
+        except Exception:
+            self.resize(900, 600)
+        self.setStyleSheet("background: #000000;")
+        QTimer.singleShot(int(duration_ms), self._finish)
+        self.show(); self.raise_()
+
+    def _finish(self):
+        self.close(); self.deleteLater()
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(0, 0, 0))
+            f = QFont(); f.setPointSize(min(self.width(), self.height()) // 3); p.setFont(f)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🗿")
+            p.end()
+        except Exception:
+            pass
+
+
 class EcssEngine:
     """Транспилятор Ecss → QSS.
 
@@ -5856,6 +5985,11 @@ class MainWindow(QMainWindow):
         self.suffer_mode = False
         self.suffer_overlay = None
         self._six_seven_timer = None
+        # ПИЗДЕЦ-режим (хаос)
+        self.chaos_mode = False
+        self._chaos_timer = None
+        self._chaos_overlays = []
+        self._shake_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -5917,6 +6051,7 @@ class MainWindow(QMainWindow):
                     self.six_seven_mode = bool(data.get("six_seven_mode", False))
                     self.mewing_streak = int(data.get("mewing_streak", 0) or 0)
                     self.suffer_mode = bool(data.get("suffer_mode", False))
+                    self.chaos_mode = bool(data.get("chaos_mode", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -6017,6 +6152,10 @@ class MainWindow(QMainWindow):
         # Режим страдания — применяется навсегда, поднимаем без вопросов.
         if getattr(self, 'suffer_mode', False):
             QTimer.singleShot(1000, lambda: self.enable_suffer_mode(confirm=False))
+
+        # ПИЗДЕЦ-режим — восстановить, если был включён.
+        if getattr(self, 'chaos_mode', False):
+            QTimer.singleShot(1100, lambda: self.set_chaos_mode(True))
 
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
@@ -6234,6 +6373,28 @@ class MainWindow(QMainWindow):
         suffer_action.setStatusTip("Чёрный квадрат поверх контента. Применяется навсегда.")
         suffer_action.triggered.connect(self.enable_suffer_mode)
         br_menu.addAction(suffer_action)
+
+        # ---- Меню «💥 ПИЗДЕЦ» (хаос) ----
+        chaos_menu = self.menuBar().addMenu("💥 &ПИЗДЕЦ")
+
+        self.chaos_action = QAction("💥 ПИЗДЕЦ-режим (хаос)", self)
+        self.chaos_action.setCheckable(True)
+        self.chaos_action.setChecked(getattr(self, 'chaos_mode', False))
+        self.chaos_action.setStatusTip("Каждые пару секунд — случайный хаос. Сохраняется.")
+        self.chaos_action.triggered.connect(lambda c: self.set_chaos_mode(c))
+        chaos_menu.addAction(self.chaos_action)
+
+        chaos_menu.addSeparator()
+        for label, slot in [
+            ("Потрясти окно 🫨", lambda: self.shake_window()),
+            ("Матрица 🟢", self.matrix_rain),
+            ("Синий экран смерти 💙 (фейк)", self.fake_bsod),
+            ("Jumpscare 🗿", self.jumpscare),
+            ("Кнопка самоуничтожения 💣", self.self_destruct),
+        ]:
+            act = QAction(label, self)
+            act.triggered.connect(lambda _=False, s=slot: s())
+            chaos_menu.addAction(act)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -6614,6 +6775,7 @@ class MainWindow(QMainWindow):
                 "six_seven_mode": bool(getattr(self, 'six_seven_mode', False)),
                 "mewing_streak": int(getattr(self, 'mewing_streak', 0) or 0),
                 "suffer_mode": bool(getattr(self, 'suffer_mode', False)),
+                "chaos_mode": bool(getattr(self, 'chaos_mode', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -7120,6 +7282,107 @@ class MainWindow(QMainWindow):
             self.suffer_overlay.raise_()
         except Exception:
             pass
+
+    # ---------- ПИЗДЕЦ-режим (хаос) ----------
+    def shake_window(self, ticks=20):
+        """Трясёт окно ~1 сек и возвращает на место."""
+        try:
+            if self._shake_timer is not None:
+                return
+            origin = self.pos()
+            state = {"n": 0}
+            self._shake_timer = QTimer(self)
+
+            def _tick():
+                state["n"] += 1
+                if state["n"] > ticks:
+                    self._shake_timer.stop()
+                    self._shake_timer = None
+                    self.move(origin)
+                    return
+                dx = random.randint(-14, 14)
+                dy = random.randint(-14, 14)
+                self.move(origin.x() + dx, origin.y() + dy)
+
+            self._shake_timer.timeout.connect(_tick)
+            self._shake_timer.start(35)
+        except Exception:
+            pass
+
+    def matrix_rain(self):
+        try:
+            ov = MatrixOverlay(self)
+            self._chaos_overlays = [o for o in self._chaos_overlays if o.isVisible()]
+            self._chaos_overlays.append(ov)
+        except Exception:
+            pass
+
+    def fake_bsod(self):
+        try:
+            ov = BsodOverlay(self)
+            ov.showFullScreen()
+            self._chaos_overlays.append(ov)
+        except Exception:
+            pass
+
+    def jumpscare(self):
+        try:
+            ov = JumpscareOverlay(self)
+            self._chaos_overlays.append(ov)
+        except Exception:
+            pass
+
+    def self_destruct(self):
+        """Кнопка самоуничтожения. Фейк, конечно. Ничего не ломает."""
+        ans = QMessageBox.question(
+            self, "💣 САМОУНИЧТОЖЕНИЕ",
+            "Запустить самоуничтожение браузера?\n\n(на самом деле нет, но попугаю)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        for n in (3, 2, 1):
+            self.status.showMessage(f"💣 Самоуничтожение через {n}...", 800)
+        self.shake_window(30)
+        QTimer.singleShot(2500, lambda: self.jumpscare())
+        QTimer.singleShot(3300, lambda: self.zoomer_burst("ПОПАЛСЯ 🤣 ничего не взорвалось 🗿"))
+
+    def set_chaos_mode(self, enabled):
+        """ПИЗДЕЦ-режим: каждые ~2.5 сек случайное хаос-событие. Персист."""
+        self.chaos_mode = bool(enabled)
+        if self.chaos_mode:
+            if self._chaos_timer is None:
+                self._chaos_timer = QTimer(self)
+                self._chaos_timer.timeout.connect(self._chaos_tick)
+            self._chaos_timer.start(2500)
+            self.zoomer_burst("💥 ПИЗДЕЦ-РЕЖИМ ВКЛЮЧЁН 💥🗿🔥")
+        else:
+            if self._chaos_timer is not None:
+                self._chaos_timer.stop()
+            try:
+                self.setWindowTitle("EBLAN Browser 6.7")
+            except Exception:
+                pass
+        self.save_settings()
+
+    def _chaos_tick(self):
+        events = [
+            lambda: self.zoomer_burst(random.choice(BRAINROT_PHRASES)),
+            lambda: self.shake_window(14),
+            self.matrix_rain,
+            self.jumpscare,
+            lambda: self.status.showMessage(random.choice([
+                "обновление винды 99% не выключай пк", "тебя засняли 📸",
+                "вирус удаляет систему C:\\... шутка 🤡", "67 новых уведомлений 🔔",
+            ]), 2200),
+            lambda: self.setWindowTitle(random.choice([
+                "EBLAN Browser 6.7 💀", "ТЫ ЕБЛАН 🗿", "six seven 🤙🤙🤙",
+                "💥 ПИЗДЕЦ 💥", "обновись до 6.7 чмо",
+            ])),
+            lambda: setattr(self, "aura", getattr(self, "aura", 0) + 67) or self._refresh_aura_label(),
+        ]
+        random.choice(events)()
 
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
