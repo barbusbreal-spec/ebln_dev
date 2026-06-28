@@ -1,0 +1,15 @@
+# Секреты и локальная конфигурация — НИКОГДА не коммитим
+.env
+backend/.env
+*.env.local
+
+# Рантайм-данные с чувствительным содержимым (пароль админки, баны)
+backend/data/admin.json
+backend/data/bans.json
+backend/data/*.tmp
+
+# Прочее
+*.log
+__pycache__/
+*.pyc
+.DS_Store
