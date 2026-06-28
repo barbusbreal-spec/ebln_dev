@@ -832,21 +832,24 @@ class EcssEngine:
     """
 
     DEFAULT_TOKENS = {
-        "window_bg":    "#2b2a33",
-        "text_color":   "#fbfbfe",
-        "accent":       "#00ddff",
-        "tab_bg":       "#1c1b22",
-        "tab_active":   "#2b2a33",
-        "toolbar_bg":   "#23222b",
-        "urlbar_bg":    "#1c1b22",
-        "urlbar_text":  "#fbfbfe",
-        "button_bg":    "#2b2a33",
-        "button_text":  "#fbfbfe",
-        "button_hover": "#52525e",
-        "border":       "#3a3944",
+        # Серьёзная современная тёмная палитра (графит + спокойный синий акцент).
+        "window_bg":    "#14161b",
+        "text_color":   "#e7e9ee",
+        "muted_text":   "#9aa3b2",
+        "accent":       "#4c8dff",
+        "accent_text":  "#ffffff",
+        "tab_bg":       "#1a1d24",
+        "tab_active":   "#23272f",
+        "toolbar_bg":   "#1a1d24",
+        "urlbar_bg":    "#0f1115",
+        "urlbar_text":  "#e7e9ee",
+        "button_bg":    "#23272f",
+        "button_text":  "#e7e9ee",
+        "button_hover": "#2c313b",
+        "border":       "#272c35",
         "font_family":  "Segoe UI",
         "font_size":    "13",
-        "radius":       "4",
+        "radius":       "8",
     }
 
     @staticmethod
@@ -914,64 +917,86 @@ QWidget {{
 QToolBar {{
     background: {g("toolbar_bg")};
     border: none;
-    spacing: 4px;
-    padding: 4px;
+    border-bottom: 1px solid {g("border")};
+    spacing: 6px;
+    padding: 6px 8px;
+}}
+QToolBar::separator {{
+    background: {g("border")};
+    width: 1px;
+    margin: 4px 6px;
 }}
 QToolBar QToolButton {{
     background: transparent;
     color: {g("text_color")};
-    padding: 4px 6px;
+    padding: 6px 9px;
     border-radius: {g("radius")}px;
 }}
 QToolBar QToolButton:hover {{
     background: {g("button_hover")};
 }}
+QToolBar QToolButton:pressed {{
+    background: {g("accent")};
+    color: {g("accent_text")};
+}}
 QTabWidget::pane {{
-    border: 1px solid {g("border")};
+    border: none;
+    border-top: 1px solid {g("border")};
     background: {g("window_bg")};
+}}
+QTabBar {{
+    background: {g("toolbar_bg")};
 }}
 QTabBar::tab {{
     background: {g("tab_bg")};
-    color: {g("text_color")};
-    padding: 8px 14px;
-    border: 1px solid {g("border")};
-    border-bottom: none;
-    border-top-left-radius: {g("radius")}px;
-    border-top-right-radius: {g("radius")}px;
-    margin-right: 2px;
+    color: {g("muted_text")};
+    padding: 9px 16px;
+    border: none;
+    border-top: 2px solid transparent;
+    min-width: 90px;
+    margin-right: 1px;
 }}
 QTabBar::tab:selected {{
     background: {g("tab_active")};
-    color: {g("accent")};
+    color: {g("text_color")};
+    border-top: 2px solid {g("accent")};
 }}
-QTabBar::tab:hover {{
+QTabBar::tab:hover:!selected {{
     background: {g("button_hover")};
+    color: {g("text_color")};
 }}
 QLineEdit {{
     background: {g("urlbar_bg")};
     color: {g("urlbar_text")};
     border: 1px solid {g("border")};
     border-radius: {g("radius")}px;
-    padding: 6px 10px;
+    padding: 7px 14px;
+    min-height: 20px;
     selection-background-color: {g("accent")};
+    selection-color: {g("accent_text")};
 }}
 QLineEdit:focus {{
-    border: 2px solid {g("accent")};
-    padding: 5px 9px;
+    border: 1px solid {g("accent")};
 }}
 QPushButton {{
     background: {g("button_bg")};
     color: {g("button_text")};
     border: 1px solid {g("border")};
     border-radius: {g("radius")}px;
-    padding: 6px 12px;
+    padding: 8px 16px;
+    font-weight: 600;
 }}
 QPushButton:hover {{
     background: {g("button_hover")};
+    border: 1px solid {g("accent")};
 }}
 QPushButton:pressed {{
     background: {g("accent")};
-    color: {g("window_bg")};
+    color: {g("accent_text")};
+}}
+QPushButton:disabled {{
+    color: {g("muted_text")};
+    border: 1px solid {g("border")};
 }}
 QMenuBar {{
     background: {g("toolbar_bg")};
@@ -986,13 +1011,24 @@ QMenuBar::item:selected {{
     color: {g("window_bg")};
 }}
 QMenu {{
-    background: {g("toolbar_bg")};
+    background: {g("tab_active")};
     color: {g("text_color")};
     border: 1px solid {g("border")};
+    border-radius: {g("radius")}px;
+    padding: 6px;
+}}
+QMenu::item {{
+    padding: 7px 18px;
+    border-radius: 5px;
 }}
 QMenu::item:selected {{
     background: {g("accent")};
-    color: {g("window_bg")};
+    color: {g("accent_text")};
+}}
+QMenu::separator {{
+    height: 1px;
+    background: {g("border")};
+    margin: 5px 8px;
 }}
 QStatusBar {{
     background: {g("toolbar_bg")};
@@ -1023,34 +1059,99 @@ QCheckBox {{
     spacing: 8px;
 }}
 QScrollBar:vertical {{
-    background: {g("toolbar_bg")};
+    background: transparent;
     width: 12px;
     border: none;
+    margin: 2px;
 }}
 QScrollBar::handle:vertical {{
     background: {g("button_hover")};
-    border-radius: {g("radius")}px;
-    min-height: 30px;
+    border-radius: 5px;
+    min-height: 36px;
 }}
 QScrollBar::handle:vertical:hover {{
     background: {g("accent")};
 }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+QScrollBar:horizontal {{
+    background: transparent;
+    height: 12px;
+    border: none;
+    margin: 2px;
+}}
+QScrollBar::handle:horizontal {{
+    background: {g("button_hover")};
+    border-radius: 5px;
+    min-width: 36px;
+}}
+QScrollBar::handle:horizontal:hover {{
+    background: {g("accent")};
+}}
+QScrollBar::add-line, QScrollBar::sub-line {{
     height: 0px;
+    width: 0px;
+}}
+QScrollBar::add-page, QScrollBar::sub-page {{
+    background: transparent;
+}}
+QSpinBox, QPlainTextEdit, QTextEdit {{
+    background: {g("urlbar_bg")};
+    color: {g("text_color")};
+    border: 1px solid {g("border")};
+    border-radius: {g("radius")}px;
+    padding: 5px 8px;
+    selection-background-color: {g("accent")};
+}}
+QSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus {{
+    border: 1px solid {g("accent")};
+}}
+QToolTip {{
+    background: {g("tab_active")};
+    color: {g("text_color")};
+    border: 1px solid {g("border")};
+    border-radius: 6px;
+    padding: 5px 8px;
+}}
+QProgressBar {{
+    background: {g("urlbar_bg")};
+    border: 1px solid {g("border")};
+    border-radius: {g("radius")}px;
+    text-align: center;
+    color: {g("text_color")};
+}}
+QProgressBar::chunk {{
+    background: {g("accent")};
+    border-radius: {g("radius")}px;
 }}
 """
         if raw:
             qss += "\n/* ==== raw Ecss block ==== */\n" + raw + "\n"
         return qss
 
+    @classmethod
+    def default_qss(cls):
+        """QSS серьёзной дефолтной темы (из DEFAULT_TOKENS)."""
+        src = "\n".join(f"{k}: {v}" for k, v in cls.DEFAULT_TOKENS.items())
+        return cls.compile(src)
+
+    @classmethod
+    def apply_default(cls):
+        """Применяет встроенную серьёзную тёмную тему по умолчанию."""
+        app = QApplication.instance()
+        if app is None:
+            return
+        try:
+            app.setStyleSheet(cls.default_qss())
+        except Exception as e:
+            print(f"[Ecss] Ошибка дефолтной темы: {e}")
+
     @staticmethod
     def apply(source):
-        """Применяет Ecss-тему к QApplication целиком. Пустая строка — сброс."""
+        """Применяет Ecss-тему к QApplication целиком. Пустая строка — дефолт-тема."""
         app = QApplication.instance()
         if app is None:
             return
         if not source or not source.strip():
-            app.setStyleSheet("")
+            EcssEngine.apply_default()
             return
         try:
             app.setStyleSheet(EcssEngine.compile(source))
@@ -7398,12 +7499,14 @@ class MainWindow(QMainWindow):
         if self.gamer_mode:
             QTimer.singleShot(500, lambda: self.set_gamer_mode(True))
 
-        # Применить сохранённую Ecss-тему
-        if getattr(self, 'ecss_theme', ''):
-            try:
+        # Применить тему: кастомную Ecss или встроенную серьёзную по умолчанию.
+        try:
+            if getattr(self, 'ecss_theme', ''):
                 EcssEngine.apply(self.ecss_theme)
-            except Exception as e:
-                print(f"[Ecss] ошибка при старте: {e}")
+            else:
+                EcssEngine.apply_default()
+        except Exception as e:
+            print(f"[Ecss] ошибка при старте: {e}")
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key.Key_F12:
