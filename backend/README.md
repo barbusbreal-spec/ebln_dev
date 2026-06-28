@@ -162,7 +162,7 @@ mysql -u root -p eblan_browser < sql/schema.sql
 
 ## Баны по железу
 
-При первом запуске создаётся `data/admin.json` с дефолтным паролем `eblan-666-admin`. **Поменяй его** через `/api/admin_password` или вручную.
+При первом запуске создаётся `data/admin.json` с дефолтным паролем `allah671488228`. **Поменяй его** через `/api/admin_password` или вручную.
 
 ### Endpoints (обновления и баны)
 

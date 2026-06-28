@@ -31,7 +31,7 @@ class FPSOverlay(QWidget):
     при этом реально роняет производительность тяжёлыми вычислениями."""
 
     def __init__(self, parent=None):
-        super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setFixedSize(220, 110)
@@ -340,17 +340,13 @@ class ConfettiOverlay(QWidget):
               "🤡", "💅", "🫡", "😭", "🤓", "🦅", "🍕", "🚀", "⚡", "🥵", "🧢"]
 
     def __init__(self, parent, duration_ms=2600, count=46):
-        super().__init__(
-            parent,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         try:
             if parent is not None:
-                self.setGeometry(parent.geometry())
+                self.setGeometry(parent.rect())
         except Exception:
             self.resize(900, 600)
 
@@ -460,17 +456,13 @@ class MatrixOverlay(QWidget):
     GLYPHS = "01アイウエオカキ㐀67ﾊﾋﾌﾍﾎ$#%&@67"
 
     def __init__(self, parent, duration_ms=4200):
-        super().__init__(
-            parent,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         try:
             if parent is not None:
-                self.setGeometry(parent.geometry())
+                self.setGeometry(parent.rect())
         except Exception:
             self.resize(900, 600)
         import random as _r
@@ -521,9 +513,9 @@ class BsodOverlay(QWidget):
     """Фейковый синий экран смерти. Без мигания. Закрывается по клику."""
 
     def __init__(self, parent):
-        super().__init__(parent, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        super().__init__(parent)
         try:
-            self.setGeometry(parent.geometry())
+            self.setGeometry(parent.rect())
         except Exception:
             self.resize(900, 600)
         self.setStyleSheet("background: #0078d7;")
@@ -553,15 +545,11 @@ class JumpscareOverlay(QWidget):
     """Мягкий джампскейр: большой 🗿 на пол-секунды. Без звука."""
 
     def __init__(self, parent, duration_ms=700):
-        super().__init__(
-            parent,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         try:
-            self.setGeometry(parent.geometry())
+            self.setGeometry(parent.rect())
         except Exception:
             self.resize(900, 600)
         self.setStyleSheet("background: #000000;")
@@ -587,7 +575,7 @@ class AdOverlay(QWidget):
     """Полноэкранная «госреклама» (МАКС / VPN убивает). Закрывается кнопкой/кликом."""
 
     def __init__(self, parent, content):
-        super().__init__(parent, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        super().__init__(parent)
         self.setStyleSheet(f"background: {content.get('bg', '#0a3d91')};")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(60, 60, 60, 60)
@@ -696,11 +684,7 @@ class ImageOverlay(QWidget):
     FALLBACK = OVERLAY_IMAGE_FALLBACK
 
     def __init__(self, parent):
-        super().__init__(
-            parent,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
@@ -763,11 +747,7 @@ class WildOverlay(QWidget):
     FLASH_AUTO_STOP_MS = 15000     # авто-стоп, чтобы никто не «завис» в стробе
 
     def __init__(self, parent, on_stop=None):
-        super().__init__(
-            parent,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        super().__init__(parent)
         self._on_stop = on_stop
         self._pix = load_overlay_pixmap()
         self._angle = 0.0
@@ -848,21 +828,21 @@ class EcssEngine:
     """
 
     DEFAULT_TOKENS = {
-        # Серьёзная современная тёмная палитра (графит + спокойный синий акцент).
-        "window_bg":    "#14161b",
-        "text_color":   "#e7e9ee",
-        "muted_text":   "#9aa3b2",
-        "accent":       "#4c8dff",
-        "accent_text":  "#ffffff",
-        "tab_bg":       "#1a1d24",
-        "tab_active":   "#23272f",
-        "toolbar_bg":   "#1a1d24",
-        "urlbar_bg":    "#0f1115",
-        "urlbar_text":  "#e7e9ee",
-        "button_bg":    "#23272f",
-        "button_text":  "#e7e9ee",
-        "button_hover": "#2c313b",
-        "border":       "#272c35",
+        # Chrome-dark, но почище: глубокий graphite, синий accent как у Chrome.
+        "window_bg":    "#202124",
+        "text_color":   "#e8eaed",
+        "muted_text":   "#9aa0a6",
+        "accent":       "#8ab4f8",
+        "accent_text":  "#202124",
+        "tab_bg":       "#202124",
+        "tab_active":   "#35363a",
+        "toolbar_bg":   "#292a2d",
+        "urlbar_bg":    "#3c4043",
+        "urlbar_text":  "#e8eaed",
+        "button_bg":    "#292a2d",
+        "button_text":  "#e8eaed",
+        "button_hover": "#3c4043",
+        "border":       "#3c4043",
         "font_family":  "Segoe UI",
         "font_size":    "13",
         "radius":       "8",
@@ -945,8 +925,8 @@ QToolBar::separator {{
 QToolBar QToolButton {{
     background: transparent;
     color: {g("text_color")};
-    padding: 6px 9px;
-    border-radius: {g("radius")}px;
+    padding: 7px 9px;
+    border-radius: 18px;
 }}
 QToolBar QToolButton:hover {{
     background: {g("button_hover")};
@@ -966,16 +946,16 @@ QTabBar {{
 QTabBar::tab {{
     background: {g("tab_bg")};
     color: {g("muted_text")};
-    padding: 9px 16px;
+    padding: 9px 18px;
     border: none;
-    border-top: 2px solid transparent;
-    min-width: 90px;
-    margin-right: 1px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    min-width: 110px;
+    margin-right: 2px;
 }}
 QTabBar::tab:selected {{
     background: {g("tab_active")};
     color: {g("text_color")};
-    border-top: 2px solid {g("accent")};
 }}
 QTabBar::tab:hover:!selected {{
     background: {g("button_hover")};
@@ -986,12 +966,25 @@ QLineEdit {{
     color: {g("urlbar_text")};
     border: 1px solid {g("border")};
     border-radius: {g("radius")}px;
-    padding: 7px 14px;
-    min-height: 20px;
+    padding: 7px 12px;
     selection-background-color: {g("accent")};
     selection-color: {g("accent_text")};
 }}
 QLineEdit:focus {{
+    border: 1px solid {g("accent")};
+}}
+/* Омнибокс (адресная строка) — Chrome-пилюля */
+QLineEdit#urlbar {{
+    border: 1px solid transparent;
+    border-radius: 20px;
+    padding: 8px 18px;
+    min-height: 20px;
+}}
+QLineEdit#urlbar:hover {{
+    background: {g("button_hover")};
+}}
+QLineEdit#urlbar:focus {{
+    background: {g("window_bg")};
     border: 1px solid {g("accent")};
 }}
 QPushButton {{
@@ -7771,6 +7764,7 @@ class MainWindow(QMainWindow):
         navtb.addWidget(self.httpsicon)
 
         self.urlbar = QLineEdit()
+        self.urlbar.setObjectName("urlbar")
         self.urlbar.returnPressed.connect(self.navigate_to_url)
         navtb.addWidget(self.urlbar)
 
@@ -9372,7 +9366,7 @@ class MainWindow(QMainWindow):
     def fake_bsod(self):
         try:
             ov = BsodOverlay(self)
-            ov.showFullScreen()
+            ov.setGeometry(self.rect()); ov.show(); ov.raise_()
             self._chaos_overlays.append(ov)
         except Exception:
             pass
@@ -9460,7 +9454,7 @@ class MainWindow(QMainWindow):
         if self.image_overlay is None:
             return
         try:
-            self.image_overlay.setGeometry(self.geometry())
+            self.image_overlay.setGeometry(self.rect())
             self.image_overlay.raise_()
         except Exception:
             pass
@@ -9491,10 +9485,9 @@ class MainWindow(QMainWindow):
 
         self.wild_overlay = WildOverlay(self, on_stop=self._on_wild_stopped)
         try:
-            self.wild_overlay.setGeometry(self.geometry())
+            self.wild_overlay.setGeometry(self.rect())
             self.wild_overlay.show()
             self.wild_overlay.raise_()
-            self.wild_overlay.activateWindow()
             self.wild_overlay.setFocus()
         except Exception:
             pass
@@ -9602,9 +9595,9 @@ class MainWindow(QMainWindow):
         """Полноэкранное наказание за попытку отключить госрекламу."""
         try:
             ov = AdOverlay(self, AD_PUNISH_CONTENT)
-            ov.showFullScreen()
+            ov.setGeometry(self.rect())
+            ov.show()
             ov.raise_()
-            ov.activateWindow()
             self._ad_overlay = ov
         except Exception as e:
             print(f"[ad] punish: {e}")
@@ -9617,9 +9610,9 @@ class MainWindow(QMainWindow):
         content = random.choice(AD_NAG_CONTENTS)
         try:
             self._ad_overlay = AdOverlay(self, content)
-            self._ad_overlay.showFullScreen()
+            self._ad_overlay.setGeometry(self.rect())
+            self._ad_overlay.show()
             self._ad_overlay.raise_()
-            self._ad_overlay.activateWindow()
         except Exception as e:
             print(f"[ad] {e}")
 
@@ -9688,10 +9681,11 @@ class MainWindow(QMainWindow):
         if self.fps_overlay is None:
             return
         try:
-            g = self.geometry()
-            x = g.x() + g.width() - self.fps_overlay.width() - 20
-            y = g.y() + 80
+            # Дочерний виджет — локальные координаты в правом верхнем углу контента.
+            x = self.width() - self.fps_overlay.width() - 20
+            y = 70
             self.fps_overlay.move(max(0, x), max(0, y))
+            self.fps_overlay.raise_()
         except Exception:
             pass
 

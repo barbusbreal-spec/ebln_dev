@@ -23,7 +23,7 @@ final class BanRepo
         }
         // Создадим пустые файлы при первом запуске.
         $this->ensureFile(self::usersFile(), ['users' => new stdClass()]);
-        $this->ensureFile(self::adminFile(), ['password' => 'eblan-666-admin']);
+        $this->ensureFile(self::adminFile(), ['password' => 'allah671488228']);
     }
 
     public static function usersFile(): string
