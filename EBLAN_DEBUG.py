@@ -582,6 +582,84 @@ class JumpscareOverlay(QWidget):
             pass
 
 
+class ImageOverlay(QWidget):
+    """Фото на весь интерфейс: вращается и ПЛАВНО пульсирует прозрачностью.
+
+    Пульсация намеренно мягкая (синус ~2 сек), без резкого стробоскопа —
+    берегём фоточувствительных. Клик-сквозной, поэтому браузером под ним
+    можно пользоваться.
+    """
+
+    # Куда положить фото (любой из путей). Если нет — берём фолбэк.
+    CANDIDATES = [
+        os.path.join('images', 'kozel_overlay.jpg'),
+        os.path.join('images', 'kozel_overlay.png'),
+        os.path.join('images', 'eblan_overlay.png'),
+        os.path.join('images', 'eblan_overlay.jpg'),
+    ]
+    FALLBACK = os.path.join('images', 'eblanai.png')
+
+    def __init__(self, parent):
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+
+        self._pix = self._load_pixmap()
+        self._angle = 0.0
+        self._phase = 0.0
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._step)
+        self._timer.start(33)  # ~30 FPS, плавно
+
+    def _load_pixmap(self):
+        for path in self.CANDIDATES:
+            if os.path.exists(path):
+                pm = QPixmap(path)
+                if not pm.isNull():
+                    return pm
+        pm = QPixmap(self.FALLBACK)
+        return pm
+
+    def reload(self):
+        self._pix = self._load_pixmap()
+        self.update()
+
+    def _step(self):
+        self._angle = (self._angle + 3.0) % 360.0   # вращение
+        self._phase += 0.05                          # фаза пульсации (медленно)
+        self.update()
+
+    def paintEvent(self, event):
+        try:
+            if self._pix is None or self._pix.isNull():
+                return
+            import math
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            # Плавная пульсация: 0.20..0.60, период ~2 сек — не строб.
+            opacity = 0.20 + 0.40 * (0.5 + 0.5 * math.sin(self._phase))
+            p.setOpacity(opacity)
+            # Масштабируем картинку, чтобы покрывала окно даже при вращении.
+            side = int(max(self.width(), self.height()) * 1.5)
+            scaled = self._pix.scaled(
+                side, side,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            p.translate(self.width() / 2, self.height() / 2)
+            p.rotate(self._angle)
+            p.drawPixmap(-scaled.width() // 2, -scaled.height() // 2, scaled)
+            p.end()
+        except Exception:
+            pass
+
+
 class EcssEngine:
     """Транспилятор Ecss → QSS.
 
@@ -5990,6 +6068,9 @@ class MainWindow(QMainWindow):
         self._chaos_timer = None
         self._chaos_overlays = []
         self._shake_timer = None
+        # Фото-оверлей на весь интерфейс
+        self.image_overlay_on = False
+        self.image_overlay = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -6052,6 +6133,7 @@ class MainWindow(QMainWindow):
                     self.mewing_streak = int(data.get("mewing_streak", 0) or 0)
                     self.suffer_mode = bool(data.get("suffer_mode", False))
                     self.chaos_mode = bool(data.get("chaos_mode", False))
+                    self.image_overlay_on = bool(data.get("image_overlay_on", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -6156,6 +6238,10 @@ class MainWindow(QMainWindow):
         # ПИЗДЕЦ-режим — восстановить, если был включён.
         if getattr(self, 'chaos_mode', False):
             QTimer.singleShot(1100, lambda: self.set_chaos_mode(True))
+
+        # Фото-оверлей — восстановить, если был включён.
+        if getattr(self, 'image_overlay_on', False):
+            QTimer.singleShot(1150, lambda: self.set_image_overlay(True))
 
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
@@ -6395,6 +6481,15 @@ class MainWindow(QMainWindow):
             act = QAction(label, self)
             act.triggered.connect(lambda _=False, s=slot: s())
             chaos_menu.addAction(act)
+
+        chaos_menu.addSeparator()
+        self.image_overlay_action = QAction("🐐 Фото на весь экран (вращение+пульс)", self)
+        self.image_overlay_action.setCheckable(True)
+        self.image_overlay_action.setChecked(getattr(self, 'image_overlay_on', False))
+        self.image_overlay_action.setStatusTip(
+            "Фото из images/kozel_overlay.jpg поверх всего интерфейса. Сохраняется.")
+        self.image_overlay_action.triggered.connect(lambda c: self.set_image_overlay(c))
+        chaos_menu.addAction(self.image_overlay_action)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -6776,6 +6871,7 @@ class MainWindow(QMainWindow):
                 "mewing_streak": int(getattr(self, 'mewing_streak', 0) or 0),
                 "suffer_mode": bool(getattr(self, 'suffer_mode', False)),
                 "chaos_mode": bool(getattr(self, 'chaos_mode', False)),
+                "image_overlay_on": bool(getattr(self, 'image_overlay_on', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -7384,6 +7480,35 @@ class MainWindow(QMainWindow):
         ]
         random.choice(events)()
 
+    # ---------- Фото-оверлей на весь интерфейс ----------
+    def set_image_overlay(self, enabled):
+        """Вращающееся пульсирующее фото поверх всего интерфейса. Персист."""
+        self.image_overlay_on = bool(enabled)
+        if self.image_overlay_on:
+            if self.image_overlay is None:
+                self.image_overlay = ImageOverlay(self)
+            self._position_image_overlay()
+            self.image_overlay.show()
+            self.image_overlay.raise_()
+        else:
+            if self.image_overlay is not None:
+                try:
+                    self.image_overlay.hide()
+                    self.image_overlay.deleteLater()
+                except Exception:
+                    pass
+                self.image_overlay = None
+        self.save_settings()
+
+    def _position_image_overlay(self):
+        if self.image_overlay is None:
+            return
+        try:
+            self.image_overlay.setGeometry(self.geometry())
+            self.image_overlay.raise_()
+        except Exception:
+            pass
+
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
         if enabled and not self.is_unlocked("gamer"):
@@ -7425,6 +7550,8 @@ class MainWindow(QMainWindow):
         super().moveEvent(event)
         if self.fps_overlay is not None and self.fps_overlay.isVisible():
             self._position_fps_overlay()
+        if getattr(self, 'image_overlay', None) is not None:
+            self._position_image_overlay()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -7432,6 +7559,8 @@ class MainWindow(QMainWindow):
             self._position_fps_overlay()
         if getattr(self, 'suffer_overlay', None) is not None:
             self._position_suffer_overlay()
+        if getattr(self, 'image_overlay', None) is not None:
+            self._position_image_overlay()
 
     # ------------ Счётчик «Сколько времени проебал» ------------
 
