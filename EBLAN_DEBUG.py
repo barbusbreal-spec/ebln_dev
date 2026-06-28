@@ -26,6 +26,20 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
 
+# Абсолютный путь к иконкам — чтобы они не пропадали при запуске из любой папки
+# (и работали в собранном PyInstaller-билде).
+if getattr(sys, "frozen", False):
+    _APP_BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
+else:
+    _APP_BASE = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR = os.path.join(_APP_BASE, "images")
+
+
+def img(name):
+    """Абсолютный путь к картинке в images/."""
+    return os.path.join(IMAGES_DIR, name)
+
+
 class FPSOverlay(QWidget):
     """Геймерский FPS-оверлей. Показывает всегда 1000+ FPS,
     при этом реально роняет производительность тяжёлыми вычислениями."""
@@ -627,12 +641,12 @@ class AdOverlay(QWidget):
 
 # Куда класть фото оверлея (берётся первый существующий), иначе фолбэк.
 OVERLAY_IMAGE_CANDIDATES = [
-    os.path.join('images', 'kozel_overlay.jpg'),
-    os.path.join('images', 'kozel_overlay.png'),
-    os.path.join('images', 'eblan_overlay.png'),
-    os.path.join('images', 'eblan_overlay.jpg'),
+    img('kozel_overlay.jpg'),
+    img('kozel_overlay.png'),
+    img('eblan_overlay.png'),
+    img('eblan_overlay.jpg'),
 ]
-OVERLAY_IMAGE_FALLBACK = os.path.join('images', 'eblanai.png')
+OVERLAY_IMAGE_FALLBACK = img('eblanai.png')
 
 
 def load_overlay_pixmap():
@@ -647,7 +661,7 @@ def load_overlay_pixmap():
 def dibof_data_uri():
     """data: URI картинки-заглушки (images/dibof.png, фолбэк — cross.png)."""
     for fn in ("dibof.png", "cross.png", "eblanai.png"):
-        p = os.path.join("images", fn)
+        p = img(fn)
         if os.path.exists(p):
             try:
                 with open(p, "rb") as f:
@@ -2959,7 +2973,7 @@ def eblan_push_key(api_base: str, token: str, key: str, timeout: int = 10) -> di
                     pass
 
         logo = ClickableLabel()
-        logo_pixmap = QPixmap(os.path.join('images', 'ma-icon-128.png'))
+        logo_pixmap = QPixmap(img('ma-icon-128.png'))
         logo.setPixmap(logo_pixmap.scaledToWidth(100, Qt.TransformationMode.SmoothTransformation))
         logo.setCursor(Qt.CursorShape.PointingHandCursor)
         header_layout.addWidget(logo, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -3173,7 +3187,7 @@ class UpdateDialog(QDialog):
     def __init__(self, current_version, new_version, changelog, download_url, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle("Доступно обновление!")
-        self.setWindowIcon(QIcon(os.path.join('images', 'update.png')))
+        self.setWindowIcon(QIcon(img('update.png')))
         self.download_url = download_url
 
         layout = QVBoxLayout()
@@ -6660,6 +6674,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
     tiles = "".join([
         tile("eblan:shop", "🛒", "Магазин", "функции за Еблан Кеш"),
         tile("eblan:steam2", "🎮", "Steam 2", "крутые игры"),
+        tile("eblan:gta6", "🚗", "GTA VI", "рабочая, без багов"),
         tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
         tile("eblan:zmode", "🇷🇺", "Z режим", "67 вкладок + гимн"),
         tile("eblan:dep", "🎲", "DEP", "виртуальное казино"),
@@ -7446,6 +7461,122 @@ class TranslatorDialog(QDialog):
         threading.Thread(target=work, daemon=True).start()
 
 
+class Gta6Game(QWidget):
+    """Мини-игра «GTA VI»: собирай 💵, уворачивайся от копов 🚓. Без багов (она простая)."""
+
+    W, H, STEP, PSZ = 620, 420, 20, 30
+
+    def __init__(self, on_gameover=None, parent=None):
+        super().__init__(parent)
+        self.on_gameover = on_gameover
+        self.setFixedSize(self.W, self.H)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.reset()
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(60)
+
+    def reset(self):
+        self.px, self.py = self.W // 2, self.H // 2
+        self.score = 0
+        self.over = False
+        self.coins = [self._rnd() for _ in range(3)]
+        self.cops = [[10, 10], [self.W - 40, 10], [self.W - 40, self.H - 40]]
+        self.update()
+
+    def _rnd(self):
+        return [random.randint(20, self.W - 40), random.randint(20, self.H - 40)]
+
+    def keyPressEvent(self, e):
+        k = e.key()
+        if self.over:
+            if k == Qt.Key.Key_Space:
+                self.reset()
+            return
+        if k in (Qt.Key.Key_Left, Qt.Key.Key_A):
+            self.px -= self.STEP
+        elif k in (Qt.Key.Key_Right, Qt.Key.Key_D):
+            self.px += self.STEP
+        elif k in (Qt.Key.Key_Up, Qt.Key.Key_W):
+            self.py -= self.STEP
+        elif k in (Qt.Key.Key_Down, Qt.Key.Key_S):
+            self.py += self.STEP
+        self.px = max(0, min(self.W - self.PSZ, self.px))
+        self.py = max(0, min(self.H - self.PSZ, self.py))
+        self._check_coins()
+        self.update()
+
+    def _check_coins(self):
+        for c in self.coins:
+            if abs(c[0] - self.px) < 28 and abs(c[1] - self.py) < 28:
+                self.score += 1
+                c[0], c[1] = self._rnd()
+
+    def _tick(self):
+        if self.over:
+            return
+        for c in self.cops:
+            c[0] += 3 if c[0] < self.px else -3 if c[0] > self.px else 0
+            c[1] += 3 if c[1] < self.py else -3 if c[1] > self.py else 0
+            if abs(c[0] - self.px) < self.PSZ and abs(c[1] - self.py) < self.PSZ:
+                self.over = True
+                if self.on_gameover:
+                    try:
+                        self.on_gameover(self.score)
+                    except Exception:
+                        pass
+        self.update()
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(40, 42, 46))
+            # дорога
+            p.setPen(QColor(80, 82, 88))
+            for x in range(0, self.W, 60):
+                p.drawLine(x, 0, x, self.H)
+            f = QFont(); f.setPointSize(18); p.setFont(f)
+            for c in self.coins:
+                p.drawText(c[0], c[1] + 18, "💵")
+            for c in self.cops:
+                p.drawText(c[0], c[1] + 18, "🚓")
+            p.drawText(self.px, self.py + 18, "🚗")
+            p.setPen(QColor(255, 255, 255))
+            fs = QFont(); fs.setPointSize(13); fs.setBold(True); p.setFont(fs)
+            p.drawText(10, 22, f"Награбил: {self.score}  💵")
+            if self.over:
+                p.fillRect(self.rect(), QColor(0, 0, 0, 170))
+                fb = QFont(); fb.setPointSize(22); fb.setBold(True); p.setFont(fb)
+                p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                           f"АРЕСТ 🚓\nНаграблено: {self.score} → Еблан Кеш\nПробел — заново")
+            p.end()
+        except Exception:
+            pass
+
+
+class Gta6Dialog(QDialog):
+    """GTA VI — рабочая, без багов (потому что мини-игра)."""
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🚗 GTA VI — рабочая, без багов")
+        root = QVBoxLayout(self)
+        title = QLabel("GTA VI 🚗  ·  стрелки/WASD — ехать, собирай 💵, беги от копов 🚓")
+        title.setStyleSheet("font-weight:700;")
+        root.addWidget(title)
+        self.game = Gta6Game(on_gameover=self._reward, parent=self)
+        root.addWidget(self.game)
+        QTimer.singleShot(50, self.game.setFocus)
+
+    def _reward(self, score):
+        try:
+            if score > 0:
+                self.mw.add_cash(score, "🚗 GTA VI — награблено")
+        except Exception:
+            pass
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -7737,22 +7868,22 @@ class MainWindow(QMainWindow):
         navtb.setIconSize(QtCore.QSize(16, 16))
         self.addToolBar(navtb)
 
-        back_btn = QAction(QIcon(os.path.join('images', 'arrow-180.png')), "назад", self)
+        back_btn = QAction(QIcon(img('arrow-180.png')), "назад", self)
         back_btn.setStatusTip("назад")
         back_btn.triggered.connect(lambda: self.tabs.currentWidget().back())
         navtb.addAction(back_btn)
 
-        next_btn = QAction(QIcon(os.path.join('images', 'arrow-000.png')), "вперед", self)
+        next_btn = QAction(QIcon(img('arrow-000.png')), "вперед", self)
         next_btn.setStatusTip("вперед")
         next_btn.triggered.connect(lambda: self.tabs.currentWidget().forward())
         navtb.addAction(next_btn)
 
-        reload_btn = QAction(QIcon(os.path.join('images', 'arrow-circle-315.png')), "перестать грузить", self)
+        reload_btn = QAction(QIcon(img('arrow-circle-315.png')), "перестать грузить", self)
         reload_btn.setStatusTip("перезагрузить")
         reload_btn.triggered.connect(lambda: self.tabs.currentWidget().reload())
         navtb.addAction(reload_btn)
 
-        home_btn = QAction(QIcon(os.path.join('images', 'home.png')), "домой", self)
+        home_btn = QAction(QIcon(img('home.png')), "домой", self)
         home_btn.setStatusTip("домой")
         home_btn.triggered.connect(self.navigate_home)
         navtb.addAction(home_btn)
@@ -7760,7 +7891,7 @@ class MainWindow(QMainWindow):
         navtb.addSeparator()
 
         self.httpsicon = QLabel()
-        self.httpsicon.setPixmap(QPixmap(os.path.join('images', 'lock-nossl.png')))
+        self.httpsicon.setPixmap(QPixmap(img('lock-nossl.png')))
         navtb.addWidget(self.httpsicon)
 
         self.urlbar = QLineEdit()
@@ -7768,14 +7899,14 @@ class MainWindow(QMainWindow):
         self.urlbar.returnPressed.connect(self.navigate_to_url)
         navtb.addWidget(self.urlbar)
 
-        stop_btn = QAction(QIcon(os.path.join('images', 'cross-circle.png')), "перестать грузить", self)
+        stop_btn = QAction(QIcon(img('cross-circle.png')), "перестать грузить", self)
         stop_btn.setStatusTip("перестань грузить")
         stop_btn.triggered.connect(lambda: self.tabs.currentWidget().stop())
         navtb.addAction(stop_btn)
 
         navtb.addSeparator()
 
-        self.ai_action = QAction(QIcon(os.path.join('images', 'eblanai.png')), "EBLAN AI", self)
+        self.ai_action = QAction(QIcon(img('eblanai.png')), "EBLAN AI", self)
         self.ai_action.setStatusTip("Открыть чат с EBLAN AI")
         self.ai_action.triggered.connect(self.open_ai_chat)
         self.ai_action.setEnabled(self.enable_eblan_ai)
@@ -7784,19 +7915,19 @@ class MainWindow(QMainWindow):
         navtb.addSeparator()
 
         # Магазин «Еблан Кеш»
-        shop_btn = QAction(QIcon(os.path.join('images', 'heart.png')), "🛒 Магазин", self)
+        shop_btn = QAction(QIcon(img('heart.png')), "🛒 Магазин", self)
         shop_btn.setStatusTip("Магазин: разблокируй функции за Еблан Кеш")
         shop_btn.triggered.connect(self.open_shop)
         navtb.addAction(shop_btn)
 
         # Кнопка гейминг-режима «сверху»
-        gaming_btn = QAction(QIcon(os.path.join('images', 'beta.png')), "🎮 Гейминг", self)
+        gaming_btn = QAction(QIcon(img('beta.png')), "🎮 Гейминг", self)
         gaming_btn.setStatusTip("Врубить гейминг-режим (RGB, FPS 1488, аура)")
         gaming_btn.triggered.connect(lambda: self.set_gamer_mode(not self.gamer_mode, force=True))
         navtb.addAction(gaming_btn)
 
         # Tonkeeper 2 (не скам)
-        self.tonkeeper_action = QAction(QIcon(os.path.join('images', 'lock-ssl.png')),
+        self.tonkeeper_action = QAction(QIcon(img('lock-ssl.png')),
                                         "Tonkeeper 2 (не скам)", self)
         self.tonkeeper_action.setStatusTip("Подключи свой TON-кошелёк. 100% не скам, мамой клянусь.")
         self.tonkeeper_action.triggered.connect(self.open_tonkeeper)
@@ -7832,70 +7963,70 @@ class MainWindow(QMainWindow):
 
         file_menu = self.menuBar().addMenu("&Файл")
 
-        new_tab_action = QAction(QIcon(os.path.join('images', 'ui-tab--plus.png')), "новая вклада", self)
+        new_tab_action = QAction(QIcon(img('ui-tab--plus.png')), "новая вклада", self)
         new_tab_action.setStatusTip("новая вкладка")
         new_tab_action.triggered.connect(lambda _: self.add_new_tab())
         file_menu.addAction(new_tab_action)
 
-        anon_action = QAction(QIcon(os.path.join('images', 'ui-tab--plus.png')), "Анонимный режим (Qwant)", self)
+        anon_action = QAction(QIcon(img('ui-tab--plus.png')), "Анонимный режим (Qwant)", self)
         anon_action.setStatusTip("Открыть приватное окно — без истории, на Qwant")
         anon_action.setShortcut(QKeySequence("Ctrl+Shift+N"))
         anon_action.triggered.connect(self.open_incognito_window)
         file_menu.addAction(anon_action)
 
-        open_file_action = QAction(QIcon(os.path.join('images', 'disk--arrow.png')), "открыть файл", self)
+        open_file_action = QAction(QIcon(img('disk--arrow.png')), "открыть файл", self)
         open_file_action.setStatusTip("открыть с файла")
         open_file_action.triggered.connect(self.open_file)
         file_menu.addAction(open_file_action)
 
-        save_file_action = QAction(QIcon(os.path.join('images', 'disk--pencil.png')), "сохранить", self)
+        save_file_action = QAction(QIcon(img('disk--pencil.png')), "сохранить", self)
         save_file_action.setStatusTip("сохранить файл")
         save_file_action.triggered.connect(self.save_file)
         file_menu.addAction(save_file_action)
 
-        history_action = QAction(QIcon(os.path.join('images', 'ui-tab--plus.png')), "История", self)
+        history_action = QAction(QIcon(img('ui-tab--plus.png')), "История", self)
         history_action.setStatusTip("Показать историю просмотров")
         history_action.triggered.connect(self.show_history)
         file_menu.addAction(history_action)
 
-        downloads_action = QAction(QIcon(os.path.join('images', 'disk--arrow.png')), "Загрузки", self)
+        downloads_action = QAction(QIcon(img('disk--arrow.png')), "Загрузки", self)
         downloads_action.setStatusTip("Показать загрузки")
         downloads_action.triggered.connect(self.show_downloads)
         file_menu.addAction(downloads_action)
 
-        print_action = QAction(QIcon(os.path.join('images', 'printer.png')), "напичатать", self)
+        print_action = QAction(QIcon(img('printer.png')), "напичатать", self)
         print_action.setStatusTip("еблан эта печатает страницу!!!!")
         print_action.triggered.connect(self.print_page)
         file_menu.addAction(print_action)
 
         help_menu = self.menuBar().addMenu("&Помощь")
 
-        about_action = QAction(QIcon(os.path.join('images', 'question.png')), "о EBLAN Browser", self)
+        about_action = QAction(QIcon(img('question.png')), "о EBLAN Browser", self)
         about_action.setStatusTip("узнайте о Eblan Browser")
         about_action.triggered.connect(self.about)
         help_menu.addAction(about_action)
 
-        settings_action = QAction(QIcon(os.path.join('images', 'gear.png')), "Настройки", self)
+        settings_action = QAction(QIcon(img('gear.png')), "Настройки", self)
         settings_action.setStatusTip("настроить браузер")
         settings_action.triggered.connect(self.open_settings)
         help_menu.addAction(settings_action)
 
-        check_updates_action = QAction(QIcon(os.path.join('images', 'update.png')), "Проверка обнов", self)
+        check_updates_action = QAction(QIcon(img('update.png')), "Проверка обнов", self)
         check_updates_action.setStatusTip("проверить обновы")
         check_updates_action.triggered.connect(lambda: self.check_for_updates(interactive=True))
         help_menu.addAction(check_updates_action)
 
-        navigate_mozarella_action = QAction(QIcon(os.path.join('images', 'lifebuoy.png')), "домашняя страница", self)
+        navigate_mozarella_action = QAction(QIcon(img('lifebuoy.png')), "домашняя страница", self)
         navigate_mozarella_action.setStatusTip("сука ты детдомовец!!!!")
         navigate_mozarella_action.triggered.connect(self.navigate_mozarella)
         help_menu.addAction(navigate_mozarella_action)
 
-        beta_settings_action = QAction(QIcon(os.path.join('images', 'beta.png')), "EBLAN Lab", self)
+        beta_settings_action = QAction(QIcon(img('beta.png')), "EBLAN Lab", self)
         beta_settings_action.setStatusTip("Открыть бета-настройки")
         beta_settings_action.triggered.connect(self.open_beta_settings)
         help_menu.addAction(beta_settings_action)
 
-        eblan_day_action = QAction(QIcon(os.path.join('images', 'heart.png')), "🎉 День Ебланов", self)
+        eblan_day_action = QAction(QIcon(img('heart.png')), "🎉 День Ебланов", self)
         eblan_day_action.setStatusTip("День Ебланов — 6 июля (6.7): подарок, скидки, конфетти")
         eblan_day_action.triggered.connect(self.show_eblan_day)
         help_menu.addAction(eblan_day_action)
@@ -8073,6 +8204,11 @@ class MainWindow(QMainWindow):
         steam2_action.triggered.connect(self.open_steam2)
         br_menu.addAction(steam2_action)
 
+        gta6_action = QAction("🚗 GTA VI (рабочая, без багов)", self)
+        gta6_action.setStatusTip("Мини-игра GTA VI: грабь, уворачивайся от копов")
+        gta6_action.triggered.connect(self.open_gta6)
+        br_menu.addAction(gta6_action)
+
         vibe_action = QAction("🤖 Режим вайбкода (ИИ-агент + терминал)", self)
         vibe_action.setStatusTip("ИИ-агент для вайбкода с терминалом")
         vibe_action.triggered.connect(self.open_vibecode)
@@ -8164,7 +8300,7 @@ class MainWindow(QMainWindow):
 
         title_suffix = " 👑" if self.subscription_level in ["premium", "pro"] else ""
         self.setWindowTitle(f"EBLAN Browser 6.7{title_suffix}")
-        self.setWindowIcon(QIcon(os.path.join('images', 'ma-icon-64.png')))
+        self.setWindowIcon(QIcon(img('ma-icon-64.png')))
 
         # Экономика 6.7: разовая плата за вход (199), затем включаем заработок.
         self._refresh_cash_label()
@@ -8682,6 +8818,9 @@ class MainWindow(QMainWindow):
     def open_vibecode(self):
         VibeCodeDialog(self).exec()
 
+    def open_gta6(self):
+        Gta6Dialog(self).exec()
+
     def open_dolboeb_panel(self):
         DolboebPanel(self).exec()
 
@@ -8866,7 +9005,7 @@ class MainWindow(QMainWindow):
     def _play_anthem(self):
         # Гимн играем, если есть файл images/anthem.mp3 и доступен QtMultimedia.
         try:
-            path = os.path.join("images", "anthem.mp3")
+            path = img("anthem.mp3")
             if not os.path.exists(path):
                 self.status.showMessage("🎵 (положи images/anthem.mp3 для гимна)", 5000)
                 return
@@ -10102,6 +10241,8 @@ class MainWindow(QMainWindow):
             self.start_z_mode()
         elif cmd == "dep":
             self.open_dep()
+        elif cmd == "gta6":
+            self.open_gta6()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
@@ -10137,9 +10278,9 @@ class MainWindow(QMainWindow):
         if browser != self.tabs.currentWidget():
             return
         if q.scheme() == 'https':
-            self.httpsicon.setPixmap(QPixmap(os.path.join('images', 'lock-ssl.png')))
+            self.httpsicon.setPixmap(QPixmap(img('lock-ssl.png')))
         else:
-            self.httpsicon.setPixmap(QPixmap(os.path.join('images', 'lock-nossl.png')))
+            self.httpsicon.setPixmap(QPixmap(img('lock-nossl.png')))
         self.urlbar.setText(q.toString())
         self.urlbar.setCursorPosition(0)
 
@@ -10681,7 +10822,7 @@ class IncognitoWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("EBLAN Browser — Анонимный режим")
         try:
-            self.setWindowIcon(QIcon(os.path.join('images', 'ma-icon-64.png')))
+            self.setWindowIcon(QIcon(img('ma-icon-64.png')))
         except Exception:
             pass
         self.resize(1100, 760)
@@ -10713,19 +10854,19 @@ class IncognitoWindow(QMainWindow):
         self.addToolBar(navtb)
 
         try:
-            back_btn = QAction(QIcon(os.path.join('images', 'arrow-180.png')), "назад", self)
+            back_btn = QAction(QIcon(img('arrow-180.png')), "назад", self)
             back_btn.triggered.connect(self._view.back)
             navtb.addAction(back_btn)
 
-            fwd_btn = QAction(QIcon(os.path.join('images', 'arrow-000.png')), "вперёд", self)
+            fwd_btn = QAction(QIcon(img('arrow-000.png')), "вперёд", self)
             fwd_btn.triggered.connect(self._view.forward)
             navtb.addAction(fwd_btn)
 
-            reload_btn = QAction(QIcon(os.path.join('images', 'arrow-circle-315.png')), "перезагрузить", self)
+            reload_btn = QAction(QIcon(img('arrow-circle-315.png')), "перезагрузить", self)
             reload_btn.triggered.connect(self._view.reload)
             navtb.addAction(reload_btn)
 
-            home_btn = QAction(QIcon(os.path.join('images', 'home.png')), "Qwant", self)
+            home_btn = QAction(QIcon(img('home.png')), "Qwant", self)
             home_btn.triggered.connect(lambda: self._view.setUrl(QUrl(INCOGNITO_HOMEPAGE)))
             navtb.addAction(home_btn)
         except Exception:
