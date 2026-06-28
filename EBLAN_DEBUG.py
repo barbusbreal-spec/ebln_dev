@@ -6613,68 +6613,145 @@ class CalculatorDialog(QDialog):
 #   Своя стартовая страница с анимированными «обоями».
 #   Кнопки — ссылки eblan:<cmd>, перехватываются EblanPage.
 # ============================================================
-def eblan_start_page_html(balance=0, gaming_on=False, rot_level=0):
-    gaming_label = "🎮 ГЕЙМИНГ: ВКЛ 🔥" if gaming_on else "🎮 Включить гейминг-режим"
+def eblan_start_page_html(balance=0, gaming_on=False, rot_level=0, boost_on=False):
+    gaming_label = "🎮 Гейминг: ВКЛ" if gaming_on else "🎮 Гейминг-режим"
+    gaming_cls = "btn primary on" if gaming_on else "btn primary"
+    boost_badge = ('<span class="chip ok">⚡ EblanBoost ×1488</span>' if boost_on else "")
     rot_note = ""
     if rot_level > 0:
-        rot_note = f"<div class='rot'>🤮 браузер подгнил на {rot_level} (выиграй в слотах — подлечишь)</div>"
+        rot_note = (f'<div class="rot">⚠️ Целостность сборки снижена на {rot_level}/12 '
+                    f'— восстановите в разделе «Слоты».</div>')
+
+    def tile(href, icon, title, sub):
+        return (f'<a class="tile" href="{href}">'
+                f'<div class="ti">{icon}</div>'
+                f'<div class="tt">{title}</div><div class="ts">{sub}</div></a>')
+
+    tiles = "".join([
+        tile("eblan:shop", "🛒", "Магазин", "функции за Еблан Кеш"),
+        tile("eblan:slots", "🎰", "Слоты", "испытай удачу"),
+        tile("eblan:cheats", "🧩", "Читы", "панель кодов"),
+        tile("eblan:keygen", "🔑", "Keygen", "ключи WinRAR"),
+        tile("eblan:boost", "⚡", "EblanBoost™", "ускорение ×777"),
+        tile("eblan:cert", "🛡️", "Сертификаты", "Минцифры · Еблан Секьюр"),
+    ])
+
     return f"""<!DOCTYPE html>
-<html lang="ru"><head><meta charset="utf-8"><title>EBLAN START 6.7</title>
+<html lang="ru"><head><meta charset="utf-8"><title>EBLAN — Новая вкладка</title>
 <style>
-  * {{ box-sizing: border-box; }}
-  html,body {{ margin:0; height:100%; font-family: 'Segoe UI', sans-serif; overflow:hidden; }}
+  :root {{
+    --bg:#14161b; --panel:#1a1d24; --panel2:#23272f; --border:#272c35;
+    --text:#e7e9ee; --muted:#9aa3b2; --accent:#4c8dff; --ok:#3fb950;
+  }}
+  * {{ box-sizing:border-box; }}
+  html,body {{ margin:0; height:100%; }}
   body {{
-    background: linear-gradient(-45deg, #1a0033, #001a33, #330022, #002a1a, #2a2a00);
-    background-size: 400% 400%;
-    animation: wp 14s ease infinite;
-    color:#fff; display:flex; flex-direction:column; align-items:center;
+    font-family:'Segoe UI',system-ui,sans-serif; color:var(--text);
+    background:var(--bg); overflow:hidden; position:relative;
   }}
-  @keyframes wp {{ 0%{{background-position:0% 50%}} 50%{{background-position:100% 50%}} 100%{{background-position:0% 50%}} }}
-  .topbar {{ width:100%; display:flex; justify-content:center; gap:12px; padding:18px; flex-wrap:wrap; }}
+  /* Деликатные «обои»: два медленно дрейфующих свечения accent'а. */
+  .bg {{ position:fixed; inset:0; z-index:0; overflow:hidden; }}
+  .bg::before, .bg::after {{
+    content:""; position:absolute; width:60vmax; height:60vmax; border-radius:50%;
+    filter:blur(90px); opacity:.16;
+  }}
+  .bg::before {{ background:#4c8dff; left:-10vmax; top:-15vmax; animation:drift1 26s ease-in-out infinite; }}
+  .bg::after  {{ background:#7a5cff; right:-12vmax; bottom:-18vmax; animation:drift2 32s ease-in-out infinite; }}
+  @keyframes drift1 {{ 0%,100%{{transform:translate(0,0)}} 50%{{transform:translate(8vmax,6vmax)}} }}
+  @keyframes drift2 {{ 0%,100%{{transform:translate(0,0)}} 50%{{transform:translate(-7vmax,-5vmax)}} }}
+
+  .wrap {{ position:relative; z-index:1; height:100%; display:flex; flex-direction:column; }}
+  header {{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 26px; border-bottom:1px solid var(--border);
+    background:rgba(20,22,27,.6); backdrop-filter:blur(6px);
+  }}
+  .brand {{ display:flex; align-items:center; gap:12px; }}
+  .mark {{
+    width:34px; height:34px; border-radius:9px; background:var(--accent);
+    color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(76,141,255,.4);
+  }}
+  .brand b {{ font-size:17px; letter-spacing:.3px; }}
+  .brand span {{ color:var(--muted); font-size:12px; }}
+  .right {{ display:flex; align-items:center; gap:12px; }}
+  .bal {{ color:var(--muted); font-size:13px; }}
+  .bal b {{ color:var(--text); }}
   .btn {{
-    text-decoration:none; color:#fff; font-weight:800; font-size:16px;
-    padding:12px 22px; border-radius:14px; border:2px solid rgba(255,255,255,.35);
-    background:rgba(255,255,255,.08); backdrop-filter:blur(4px); transition:.15s;
+    text-decoration:none; color:var(--text); font-size:14px; font-weight:600;
+    padding:9px 16px; border-radius:9px; border:1px solid var(--border);
+    background:var(--panel2); transition:.12s;
   }}
-  .btn:hover {{ transform:scale(1.06); background:rgba(255,255,255,.18); }}
-  .gaming {{ border-color:#00ff66; box-shadow:0 0 18px #00ff66; }}
-  .logo {{ font-size:90px; margin-top:6vh; animation:spin 9s linear infinite; }}
-  @keyframes spin {{ from{{transform:rotate(0)}} to{{transform:rotate(360deg)}} }}
-  h1 {{ font-size:40px; margin:6px; text-shadow:0 0 16px #0af; }}
-  .bal {{ font-size:20px; color:#ffd33d; font-weight:800; }}
-  form {{ margin-top:22px; }}
+  .btn:hover {{ border-color:var(--accent); }}
+  .btn.primary {{ background:var(--accent); color:#fff; border-color:var(--accent); }}
+  .btn.primary.on {{ box-shadow:0 0 0 3px rgba(76,141,255,.25) inset; }}
+
+  main {{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }}
+  h1 {{ font-size:30px; font-weight:700; margin:0 0 6px; letter-spacing:.4px; }}
+  .tag {{ color:var(--muted); margin-bottom:26px; display:flex; gap:10px; align-items:center; }}
+  .chip {{ font-size:12px; padding:3px 9px; border-radius:20px; border:1px solid var(--border); color:var(--muted); }}
+  .chip.ok {{ color:var(--ok); border-color:rgba(63,185,80,.4); }}
+
+  form {{ width:min(680px,92vw); position:relative; }}
   input[type=text] {{
-    width:min(70vw,560px); padding:14px 18px; font-size:18px; border-radius:30px;
-    border:none; outline:none;
+    width:100%; padding:15px 20px; font-size:16px; color:var(--text);
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; outline:none;
   }}
-  .emoji {{ position:absolute; font-size:30px; opacity:.5; animation:float 8s ease-in-out infinite; }}
-  @keyframes float {{ 0%,100%{{transform:translateY(0)}} 50%{{transform:translateY(-40px)}} }}
-  .rot {{ margin-top:14px; color:#9acd32; font-weight:700; }}
-  .hint {{ position:absolute; bottom:14px; font-size:12px; opacity:.6; }}
+  input[type=text]:focus {{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(76,141,255,.18); }}
+
+  .tiles {{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; width:min(820px,94vw); margin-top:26px; }}
+  @media (max-width:760px) {{ .tiles {{ grid-template-columns:repeat(3,1fr); }} }}
+  .tile {{
+    text-decoration:none; color:var(--text); background:var(--panel);
+    border:1px solid var(--border); border-radius:12px; padding:16px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:4px; transition:.12s;
+  }}
+  .tile:hover {{ border-color:var(--accent); transform:translateY(-2px); background:var(--panel2); }}
+  .ti {{ font-size:24px; }}
+  .tt {{ font-weight:700; font-size:14px; }}
+  .ts {{ color:var(--muted); font-size:11px; text-align:center; }}
+
+  .rot {{ margin-top:18px; color:#e3b341; font-size:13px; }}
+  footer {{ padding:12px 26px; border-top:1px solid var(--border); color:var(--muted); font-size:12px;
+            display:flex; justify-content:space-between; background:rgba(20,22,27,.6); }}
+  footer .ok {{ color:var(--ok); }}
 </style></head>
 <body>
-  <div class="emoji" style="left:8%;top:30%">🗿</div>
-  <div class="emoji" style="left:85%;top:25%;animation-delay:1s">💀</div>
-  <div class="emoji" style="left:20%;top:70%;animation-delay:2s">🤙</div>
-  <div class="emoji" style="left:75%;top:65%;animation-delay:3s">🐐</div>
-  <div class="emoji" style="left:50%;top:18%;animation-delay:1.5s">🔥</div>
+  <div class="bg"></div>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="mark">E</div>
+        <div><b>EBLAN Browser</b><br><span>версия 6.7 · защищённый режим</span></div>
+      </div>
+      <div class="right">
+        {boost_badge}
+        <span class="bal">💰 Еблан Кеш: <b>{balance}</b></span>
+        <a class="{gaming_cls}" href="eblan:gaming">{gaming_label}</a>
+      </div>
+    </header>
 
-  <div class="topbar">
-    <a class="btn gaming" href="eblan:gaming">{gaming_label}</a>
-    <a class="btn" href="eblan:shop">🛒 Магазин</a>
-    <a class="btn" href="eblan:slots">🎰 Слоты</a>
+    <main>
+      <h1>Добро пожаловать в EBLAN 6.7</h1>
+      <div class="tag">
+        <span class="chip ok">🛡️ Минцифры ✅</span>
+        <span class="chip ok">🔒 Еблан Секьюр ✅</span>
+        <span class="chip">TLS активен</span>
+      </div>
+
+      <form method="get" action="https://ya.ru/search/">
+        <input type="text" name="text" placeholder="Поиск в Яндексе или адрес сайта…" autofocus>
+      </form>
+
+      <div class="tiles">{tiles}</div>
+      {rot_note}
+    </main>
+
+    <footer>
+      <span>EBLAN Browser 6.7 — <span class="ok">соединение защищено</span></span>
+      <span>сертификаты: Минцифры ✅ · Еблан Секьюр ✅</span>
+    </footer>
   </div>
-
-  <div class="logo">🐐</div>
-  <h1>EBLAN BROWSER 6.7</h1>
-  <div class="bal">💰 Еблан Кеш: {balance}</div>
-  {rot_note}
-
-  <form method="get" action="https://ya.ru/search/">
-    <input type="text" name="text" placeholder="искать в Яндексе (или введи адрес) 🔎" autofocus>
-  </form>
-
-  <div class="hint">это твоя стартовая. кнопка сверху — гейминг-режим 🎮</div>
 </body></html>"""
 
 
@@ -6881,6 +6958,179 @@ class SlotsDialog(QDialog):
         super().reject()
 
 
+class CertDialog(QDialog):
+    """Косметические «сертификаты» Минцифры / Еблан Секьюр.
+
+    НИЧЕГО реально не устанавливает в системное хранилище — это троллинг-бейдж.
+    Настоящий корневой сертификат государства = перехват TLS, поэтому только вид.
+    """
+
+    def __init__(self, main_window=None, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.setWindowTitle("🛡️ Сертификаты безопасности")
+        self.setMinimumWidth(440)
+        root = QVBoxLayout(self)
+
+        title = QLabel("Доверенные корневые сертификаты")
+        f = title.font(); f.setPointSize(14); f.setBold(True); title.setFont(f)
+        root.addWidget(title)
+
+        for name, status in [
+            ("Сертификат Минцифры России", "установлен ✅"),
+            ("Еблан Секьюр Root CA", "установлен ✅"),
+            ("EBLAN TLS Inspector", "активен ✅"),
+        ]:
+            row = QLabel(f"🛡️  {name} — <b style='color:#3fb950'>{status}</b>")
+            row.setTextFormat(Qt.TextFormat.RichText)
+            root.addWidget(row)
+
+        note = QLabel(
+            "Соединение «защищено». На самом деле это косметика — никакой настоящий "
+            "корневой сертификат в систему не ставится (это был бы перехват трафика). "
+            "Просто галочки для солидности. 🗿"
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#9aa3b2; font-size:12px; margin-top:8px;")
+        root.addWidget(note)
+
+        btn = QPushButton("Понятно, я в безопасности ✅")
+        btn.clicked.connect(self.accept)
+        root.addWidget(btn)
+
+
+class KeygenDialog(QDialog):
+    """Фейковый «WinRAR keygen». Генерит правдоподобную ЧУШЬ, не настоящие ключи."""
+
+    def __init__(self, main_window=None, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.setWindowTitle("🔑 WinRAR Keygen 6.7 by EBLAN")
+        self.setMinimumWidth(460)
+        root = QVBoxLayout(self)
+
+        title = QLabel("WinRAR Universal Keygen™")
+        f = title.font(); f.setPointSize(14); f.setBold(True); title.setFont(f)
+        root.addWidget(title)
+
+        sub = QLabel("Нажми «Сгенерировать» — получишь лицензионный ключ (нет).")
+        sub.setStyleSheet("color:#9aa3b2; font-size:12px;")
+        root.addWidget(sub)
+
+        self.out = QPlainTextEdit()
+        self.out.setReadOnly(True)
+        self.out.setMinimumHeight(150)
+        self.out.setStyleSheet("font-family:'Courier New',monospace;")
+        root.addWidget(self.out)
+
+        row = QHBoxLayout()
+        gen = QPushButton("Сгенерировать 🔑")
+        gen.clicked.connect(self._generate)
+        cp = QPushButton("Скопировать")
+        cp.clicked.connect(lambda: QApplication.clipboard().setText(self.out.toPlainText()))
+        row.addWidget(gen); row.addWidget(cp)
+        root.addLayout(row)
+
+        warn = QLabel("⚠️ Шутка. Это случайная чушь, не настоящий ключ. WinRAR и так "
+                      "работает вечно с «истёкшей» лицензией — кейген ему не нужен. 🗿")
+        warn.setWordWrap(True)
+        warn.setStyleSheet("color:#e3b341; font-size:11px;")
+        root.addWidget(warn)
+
+    def _generate(self):
+        import string
+        def block(n):
+            return "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(n))
+        name = random.choice(["EBLAN", "CHAD", "SIGMA", "KOZEL", "67"])
+        key = "-".join(block(5) for _ in range(5))
+        r=random.randint
+        text = (
+            "RAR registration data\n"
+            f"{name} Corp\n"
+            f"Unlimited Company License\n"
+            f"UID={block(8)}\n"
+            f"6{r(10,99)}{block(4)}...{block(4)} (бесполезно)\n\n"
+            f"LICENSE KEY: {key}\n"
+            f"(достоверность: 0%, ауры: +{r(1,1488)})"
+        )
+        self.out.setPlainText(text)
+
+
+class CheatsDialog(QDialog):
+    """Встроенные читы — на внутреннюю экономику (Еблан Кеш / аура / магазин)."""
+
+    CODES = {
+        "idkfa":     ("💰 +9999 Еблан Кеш", "cash"),
+        "iddqd":     ("🛡️ Снять всю гниль браузера", "unrot"),
+        "rosebud":   ("✨ +100000 ауры", "aura"),
+        "allunlock": ("🔓 Разблокировать все функции магазина", "unlock"),
+        "hesoyam":   ("🎁 Всё сразу", "all"),
+    }
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("🧩 EBLAN Читы")
+        self.setMinimumWidth(420)
+        root = QVBoxLayout(self)
+
+        title = QLabel("Чит-коды")
+        f = title.font(); f.setPointSize(14); f.setBold(True); title.setFont(f)
+        root.addWidget(title)
+
+        row = QHBoxLayout()
+        self.inp = QLineEdit()
+        self.inp.setPlaceholderText("введи чит-код…")
+        self.inp.returnPressed.connect(self._apply_typed)
+        go = QPushButton("Активировать")
+        go.clicked.connect(self._apply_typed)
+        row.addWidget(self.inp, 1); row.addWidget(go)
+        root.addLayout(row)
+
+        root.addWidget(QLabel("Или жми кнопкой:"))
+        for code, (label, _act) in self.CODES.items():
+            b = QPushButton(f"{label}   ({code})")
+            b.clicked.connect(lambda _=False, c=code: self._apply(c))
+            root.addWidget(b)
+
+        self.status = QLabel("")
+        self.status.setStyleSheet("color:#3fb950; font-weight:600;")
+        root.addWidget(self.status)
+
+    def _apply_typed(self):
+        self._apply(self.inp.text().strip().lower())
+
+    def _apply(self, code):
+        info = self.CODES.get(code)
+        if not info:
+            self.status.setStyleSheet("color:#f85149; font-weight:600;")
+            self.status.setText("Неверный чит-код 🗿")
+            return
+        act = info[1]
+        done = []
+        if act in ("cash", "all"):
+            self.mw.add_cash(9999, "🧩 Чит"); done.append("+9999 кеш")
+        if act in ("aura", "all"):
+            self.mw.aura = getattr(self.mw, "aura", 0) + 100000
+            try: self.mw._refresh_aura_label()
+            except Exception: pass
+            done.append("+100000 ауры")
+        if act in ("unlock", "all"):
+            for fid in EBLAN_SHOP:
+                if fid not in self.mw.unlocked_features:
+                    self.mw.unlocked_features.append(fid)
+            done.append("всё разблокировано")
+        if act in ("unrot", "all"):
+            try: self.mw.heal_rot(99)
+            except Exception: pass
+            done.append("гниль снята")
+        self.mw.save_settings()
+        self.status.setStyleSheet("color:#3fb950; font-weight:600;")
+        self.status.setText("✅ Чит активирован: " + ", ".join(done))
+        try:
+            self.mw.zoomer_burst("🧩 ЧИТ АКТИВИРОВАН 😎")
+        except Exception:
+            pass
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -6945,6 +7195,9 @@ class MainWindow(QMainWindow):
         self.rot_overlay = None
         self._slots_timer = None
         self._gamer_title_timer = None
+        # EblanBoost (косметический «ускоритель»)
+        self.eblanboost_on = False
+        self._boost_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -7011,6 +7264,7 @@ class MainWindow(QMainWindow):
                     self.inoagent_mode = bool(data.get("inoagent_mode", False))
                     self.ad_nag_mode = bool(data.get("ad_nag_mode", False))
                     self.rot_level = int(data.get("rot_level", 0) or 0)
+                    self.eblanboost_on = bool(data.get("eblanboost_on", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -7133,6 +7387,9 @@ class MainWindow(QMainWindow):
 
         # Слоты вылезают каждые 5 минут.
         self._start_forced_slots()
+        # EblanBoost — восстановить, если был включён.
+        if getattr(self, 'eblanboost_on', False):
+            QTimer.singleShot(1400, lambda: self.set_eblanboost(True))
         # Восстановить гниль браузера, если была.
         if getattr(self, 'rot_level', 0) > 0:
             QTimer.singleShot(1300, self._apply_rot_overlay)
@@ -7429,6 +7686,28 @@ class MainWindow(QMainWindow):
         slots_action.setStatusTip("Крути слоты на Еблан Кеш. Каждые 5 мин слот вылезает сам.")
         slots_action.triggered.connect(lambda: self.open_slots(forced=False))
         br_menu.addAction(slots_action)
+
+        cheats_action = QAction("🧩 Читы", self)
+        cheats_action.setStatusTip("Чит-коды на Еблан Кеш / ауру / разблокировку")
+        cheats_action.triggered.connect(self.open_cheats)
+        br_menu.addAction(cheats_action)
+
+        keygen_action = QAction("🔑 Keygen WinRAR", self)
+        keygen_action.setStatusTip("Фейковый генератор ключей WinRAR (мем)")
+        keygen_action.triggered.connect(self.open_keygen)
+        br_menu.addAction(keygen_action)
+
+        cert_action = QAction("🛡️ Сертификаты (Минцифры · Еблан Секьюр)", self)
+        cert_action.setStatusTip("Косметические сертификаты безопасности")
+        cert_action.triggered.connect(self.open_cert)
+        br_menu.addAction(cert_action)
+
+        self.eblanboost_action = QAction("⚡ EblanBoost™ (ускорение ×777)", self)
+        self.eblanboost_action.setCheckable(True)
+        self.eblanboost_action.setChecked(getattr(self, 'eblanboost_on', False))
+        self.eblanboost_action.setStatusTip("Ускоряет всё в 777 раз (по факту нет 🗿)")
+        self.eblanboost_action.triggered.connect(lambda c: self.set_eblanboost(c))
+        br_menu.addAction(self.eblanboost_action)
 
         self.add_new_tab(start_page=True)
 
@@ -7825,6 +8104,7 @@ class MainWindow(QMainWindow):
                 "inoagent_mode": bool(getattr(self, 'inoagent_mode', False)),
                 "ad_nag_mode": bool(getattr(self, 'ad_nag_mode', False)),
                 "rot_level": int(getattr(self, 'rot_level', 0) or 0),
+                "eblanboost_on": bool(getattr(self, 'eblanboost_on', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -7978,6 +8258,44 @@ class MainWindow(QMainWindow):
         """Калькулятор с цифрами только 1 4 8 6 7 9."""
         dlg = CalculatorDialog(self)
         dlg.exec()
+
+    def open_cert(self):
+        CertDialog(self).exec()
+
+    def open_keygen(self):
+        KeygenDialog(self).exec()
+
+    def open_cheats(self):
+        CheatsDialog(self).exec()
+
+    # ---------- EblanBoost™ (косметический «ускоритель») ----------
+    def set_eblanboost(self, enabled):
+        """Ускоряет всё «в 777 раз» и пишет скорость ×1488. По факту — ничего. 🗿"""
+        self.eblanboost_on = bool(enabled)
+        if self.eblanboost_on:
+            if self._boost_timer is None:
+                self._boost_timer = QTimer(self)
+                self._boost_timer.timeout.connect(self._boost_tick)
+            self._boost_timer.start(900)
+            self.zoomer_burst("⚡ EblanBoost™ ВКЛ — ускорено в 777 раз 🚀")
+            self._boost_tick()
+        else:
+            if self._boost_timer is not None:
+                self._boost_timer.stop()
+            self.status.showMessage("EblanBoost™ выкл. Стало честно медленно. 🗿", 4000)
+        try:
+            self.eblanboost_action.setChecked(self.eblanboost_on)
+        except Exception:
+            pass
+        self.save_settings()
+
+    def _boost_tick(self):
+        # Фейковая «скорость»: рандом × 1488. По факту ничего не ускоряется.
+        fake = random.randint(67, 777) * 1488
+        try:
+            self.status.showMessage(f"⚡ EblanBoost™: {fake:,} оптимизаций/сек · ускорение ×777 🚀", 1500)
+        except Exception:
+            pass
 
     # ---------- День Ебланов (6 июля) ----------
     def shop_price(self, fid):
@@ -9143,6 +9461,7 @@ class MainWindow(QMainWindow):
                 balance=int(getattr(self, "eblan_cash", 0)),
                 gaming_on=bool(getattr(self, "gamer_mode", False)),
                 rot_level=int(getattr(self, "rot_level", 0)),
+                boost_on=bool(getattr(self, "eblanboost_on", False)),
             )
             browser.setHtml(html, QUrl("https://eblan.start/"))
         except Exception as e:
@@ -9161,6 +9480,17 @@ class MainWindow(QMainWindow):
             self.open_shop()
         elif cmd == "slots":
             self.open_slots()
+        elif cmd == "cheats":
+            self.open_cheats()
+        elif cmd == "keygen":
+            self.open_keygen()
+        elif cmd == "cert":
+            self.open_cert()
+        elif cmd == "boost":
+            self.set_eblanboost(not getattr(self, "eblanboost_on", False))
+            w = self.tabs.currentWidget()
+            if isinstance(w, QWebEngineView):
+                self.load_start_page(w)
 
     def navigate_to_url(self):
         url_text = self.urlbar.text()
