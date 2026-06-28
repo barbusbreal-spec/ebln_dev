@@ -1241,6 +1241,16 @@ AD_NAG_CONTENTS = [
     },
 ]
 
+# Наказание за попытку отключить госрекламу — на весь экран.
+AD_PUNISH_CONTENT = {
+    "bg": "#7a0000",
+    "title": "🤡 КУДА СОБРАЛСЯ?",
+    "body": "Госрекламу ОТКЛЮЧИТЬ НЕЛЬЗЯ.\n"
+            "За попытку — лови на весь экран.\n"
+            "Сиди и смотри, гражданин. 🇷🇺",
+    "btn": "Виноват, исправлюсь",
+}
+
 
 def get_local_ban_path():
     """Файл-маркер локального «бана» (шуточный, ставится Tonkeeper-ом)."""
@@ -8122,14 +8132,27 @@ class MainWindow(QMainWindow):
 
     # ---------- Госреклама каждые 30 секунд ----------
     def set_ad_nag_mode(self, enabled):
-        """Каждые 30 сек — полноэкранная реклама МАКС / «VPN убивает». Персист."""
+        """Каждые 30 сек — полноэкранная реклама МАКС / «VPN убивает». Персист.
+
+        ВАЖНО: отключить госрекламу НЕЛЬЗЯ. Попытка снять галку не выключает
+        режим, а разворачивает наказание на весь экран.
+        """
+        if not enabled and getattr(self, 'ad_nag_mode', False):
+            # «Нельзя отключить» — возвращаем галку и наказываем.
+            try:
+                self.ad_nag_action.setChecked(True)
+            except Exception:
+                pass
+            self._show_ad_punish()
+            return
+
         self.ad_nag_mode = bool(enabled)
         if self.ad_nag_mode:
             if self._ad_nag_timer is None:
                 self._ad_nag_timer = QTimer(self)
                 self._ad_nag_timer.timeout.connect(self._show_ad)
             self._ad_nag_timer.start(30000)  # каждые 30 секунд
-            self.status.showMessage("📢 Госреклама активирована. Каждые 30 сек.", 4000)
+            self.status.showMessage("📢 Госреклама активирована. Отключить нельзя 🤡", 4000)
         else:
             if self._ad_nag_timer is not None:
                 self._ad_nag_timer.stop()
@@ -8138,6 +8161,17 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self.save_settings()
+
+    def _show_ad_punish(self):
+        """Полноэкранное наказание за попытку отключить госрекламу."""
+        try:
+            ov = AdOverlay(self, AD_PUNISH_CONTENT)
+            ov.showFullScreen()
+            ov.raise_()
+            ov.activateWindow()
+            self._ad_overlay = ov
+        except Exception as e:
+            print(f"[ad] punish: {e}")
 
     def _show_ad(self):
         # Не плодим окна: если предыдущее ещё открыто — пропускаем.
