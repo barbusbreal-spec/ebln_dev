@@ -307,6 +307,21 @@ BRAINROT_PHRASES = [
     "+9999 aura ✨", "он реально кук 🍳", "мьюинг 🤫🧏", "fanum tax 🍔",
     "this is bussin 🔥", "skill issue 💀", "GG izi 🎮", "чел поймал W 🦅",
     "галя, отмена 🛑", "лютый кринж 😭", "ёмаё это пик 📈", "слэй 💅",
+    "six seven 🤙 6️⃣7️⃣", "67 mood fr 💯", "тут пахнет W 🦅", "мог ⬆️",
+    "глейзинг детектед 🫧", "luckmaxxing 🍀", "гриндим ауру 🌀", "пик перформанс 📊",
+    "это так 67 🤙", "ratio + L + ты кук 🍳", "demure 💅 mindful", "беттер колл 67",
+]
+
+# Сигма-цитаты (мотивационный брейнрот)
+SIGMA_QUOTES = [
+    "Сигма не объясняет — сигма делает. 🗿",
+    "Пока ты спал, я фармил ауру. 🌀",
+    "67 — это не число, это образ жизни. 🤙",
+    "Меньше слов, больше мьюинга. 🤫🧏",
+    "Они хейтят, потому что не могут в W. 🦅",
+    "Твой лимит — это твоё воображение и баланс Еблан Кеша. 💸",
+    "Настоящий чад не глейзит. Чад могает. ⬆️",
+    "Тишина — лучший рицз. 😎",
 ]
 
 # Konami-код: ↑ ↑ ↓ ↓ ← → ← → B A
@@ -387,6 +402,52 @@ class ConfettiOverlay(QWidget):
                 p.rotate(part["rot"])
                 p.drawText(0, 0, part["e"])
                 p.restore()
+            p.end()
+        except Exception:
+            pass
+
+
+class SufferOverlay(QWidget):
+    """Режим Палестины / страдания: чёрный квадрат поверх контента.
+
+    Применяется навсегда (сохраняется в настройках, поднимается на старте).
+    Единственный выход — отстрадать: кликнуть по квадрату ровно 67 раз.
+    """
+
+    ESCAPE_CLICKS = 67
+
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.mw = main_window
+        self.clicks = 0
+        self.setCursor(Qt.CursorShape.ForbiddenCursor)
+        self.setAutoFillBackground(True)
+        self.setStyleSheet("background: #000000;")
+
+    def mousePressEvent(self, ev):
+        self.clicks += 1
+        if self.clicks >= self.ESCAPE_CLICKS:
+            try:
+                self.mw.disable_suffer_mode()
+            except Exception:
+                pass
+            return
+        self.update()
+        super().mousePressEvent(ev)
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(0, 0, 0))
+            # Еле заметный текст страдания — тёмно-серый на чёрном.
+            p.setPen(QColor(28, 28, 28))
+            f = QFont(); f.setPointSize(22); f.setBold(True); p.setFont(f)
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "СТРАДАЙ")
+            f2 = QFont(); f2.setPointSize(10); p.setFont(f2)
+            left = max(0, self.ESCAPE_CLICKS - self.clicks)
+            r = self.rect().adjusted(0, 60, 0, 0)
+            p.drawText(r, Qt.AlignmentFlag.AlignCenter,
+                       f"чтобы отстрадать — кликни ещё {left} раз")
             p.end()
         except Exception:
             pass
@@ -5789,6 +5850,12 @@ class MainWindow(QMainWindow):
         self._zoomer_timer = None
         self._confetti = []
         self._konami_seq = []
+        # Молодёжное 67 + режим страдания
+        self.six_seven_mode = False
+        self.mewing_streak = 0
+        self.suffer_mode = False
+        self.suffer_overlay = None
+        self._six_seven_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -5847,6 +5914,9 @@ class MainWindow(QMainWindow):
                     self.unlocked_features = list(data.get("unlocked_features", []) or [])
                     self.browser_entry_paid = bool(data.get("browser_entry_paid", False))
                     self.eblan_day_year = int(data.get("eblan_day_year", 0) or 0)
+                    self.six_seven_mode = bool(data.get("six_seven_mode", False))
+                    self.mewing_streak = int(data.get("mewing_streak", 0) or 0)
+                    self.suffer_mode = bool(data.get("suffer_mode", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -5939,6 +6009,14 @@ class MainWindow(QMainWindow):
         # Если зумер-режим был включён — поднимаем после показа окна.
         if getattr(self, 'zoomer_mode', False):
             QTimer.singleShot(900, lambda: self.set_zoomer_mode(True))
+
+        # 67-режим — восстановить, если был включён.
+        if getattr(self, 'six_seven_mode', False):
+            QTimer.singleShot(950, lambda: self.set_six_seven_mode(True))
+
+        # Режим страдания — применяется навсегда, поднимаем без вопросов.
+        if getattr(self, 'suffer_mode', False):
+            QTimer.singleShot(1000, lambda: self.enable_suffer_mode(confirm=False))
 
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
@@ -6118,6 +6196,44 @@ class MainWindow(QMainWindow):
             no_ext_action = QAction("(Расширения не установлены)", self)
             no_ext_action.setEnabled(False)
             extensions_menu.addAction(no_ext_action)
+
+        # ---- Молодёжное меню «67» (brainrot) ----
+        br_menu = self.menuBar().addMenu("🤙 &67")
+
+        self.six_seven_action = QAction("Six-Seven режим 🤙 6️⃣7️⃣", self)
+        self.six_seven_action.setCheckable(True)
+        self.six_seven_action.setChecked(getattr(self, 'six_seven_mode', False))
+        self.six_seven_action.setStatusTip("Тикер 67, конфетти и фарм ауры на каждый чих")
+        self.six_seven_action.triggered.connect(lambda c: self.set_six_seven_mode(c))
+        br_menu.addAction(self.six_seven_action)
+
+        zoomer_action = QAction("Зумер-режим 💀 (aura)", self)
+        zoomer_action.setCheckable(True)
+        zoomer_action.setChecked(getattr(self, 'zoomer_mode', False))
+        zoomer_action.triggered.connect(lambda c: self.set_zoomer_mode(c))
+        br_menu.addAction(zoomer_action)
+
+        br_menu.addSeparator()
+        for label, slot in [
+            ("Накинуть Rizz +67 😎", self.brainrot_rizz),
+            ("Six-Seven 🤙 (бёрст)", self.brainrot_six_seven_burst),
+            ("Skibidi 🚽 (конфетти)", lambda: self.zoomer_burst("СКИБИДИ 🚽🔥")),
+            ("Fanum Tax 💸 (отнимет кеш)", self.brainrot_fanum_tax),
+            ("Mewing streak 🤫🧏 +1", self.brainrot_mewing),
+            ("Gyatt level 😳 (рандом)", self.brainrot_gyatt),
+            ("Сигма-цитата 🗿", self.brainrot_sigma_quote),
+            ("Aura farm 🌀 +ничего", self.brainrot_aura_farm),
+            ("Glaze 🫧 себя", self.brainrot_glaze),
+        ]:
+            act = QAction(label, self)
+            act.triggered.connect(lambda _=False, s=slot: s())
+            br_menu.addAction(act)
+
+        br_menu.addSeparator()
+        suffer_action = QAction("⬛ Режим Палестины (страдай) — НАВСЕГДА", self)
+        suffer_action.setStatusTip("Чёрный квадрат поверх контента. Применяется навсегда.")
+        suffer_action.triggered.connect(self.enable_suffer_mode)
+        br_menu.addAction(suffer_action)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -6495,6 +6611,9 @@ class MainWindow(QMainWindow):
                 "unlocked_features": list(getattr(self, 'unlocked_features', []) or []),
                 "browser_entry_paid": bool(getattr(self, 'browser_entry_paid', False)),
                 "eblan_day_year": int(getattr(self, 'eblan_day_year', 0) or 0),
+                "six_seven_mode": bool(getattr(self, 'six_seven_mode', False)),
+                "mewing_streak": int(getattr(self, 'mewing_streak', 0) or 0),
+                "suffer_mode": bool(getattr(self, 'suffer_mode', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -6867,6 +6986,141 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    # ---------- Молодёжное 67 (brainrot) ----------
+    def set_six_seven_mode(self, enabled):
+        """67-режим: периодический бёрст 6️⃣7️⃣ + фарм ауры + случайный fanum tax."""
+        self.six_seven_mode = bool(enabled)
+        try:
+            self.aura_label.setVisible(self.six_seven_mode or self.zoomer_mode)
+        except Exception:
+            pass
+        if self.six_seven_mode:
+            if self._six_seven_timer is None:
+                self._six_seven_timer = QTimer(self)
+                self._six_seven_timer.timeout.connect(self._six_seven_tick)
+            self._six_seven_timer.start(6700)
+            self.zoomer_burst("SIX SEVEN 🤙 6️⃣7️⃣ режим ВКЛ")
+            self.aura = getattr(self, 'aura', 0) + 67
+            self._refresh_aura_label()
+        else:
+            if self._six_seven_timer is not None:
+                self._six_seven_timer.stop()
+        self.save_settings()
+
+    def _six_seven_tick(self):
+        self.aura = getattr(self, 'aura', 0) + 67
+        self._refresh_aura_label()
+        self.zoomer_burst(random.choice(["6️⃣7️⃣ 🤙", "67 fr fr 💯", "это так 67 🦅"]))
+        # Иногда прилетает Fanum Tax.
+        if random.random() < 0.34:
+            self.brainrot_fanum_tax(silent_ok=True)
+
+    def _refresh_aura_label(self):
+        try:
+            self.aura_label.setVisible(True)
+            self.aura_label.setText(f"✨ AURA {self.aura}")
+        except Exception:
+            pass
+
+    def brainrot_rizz(self):
+        self.aura = getattr(self, 'aura', 0) + 67
+        self._refresh_aura_label()
+        self.zoomer_burst("RIZZ +67 😎🤙")
+
+    def brainrot_six_seven_burst(self):
+        self.zoomer_burst("6️⃣7️⃣ SIX SEVEN 🤙🔥")
+        self.status.showMessage("six seven 🤙 (если ты понял — ты понял)", 4000)
+
+    def brainrot_fanum_tax(self, silent_ok=False):
+        """Fanum Tax: отнимает немного Еблан Кеша. Жизнь — боль."""
+        tax = random.randint(1, 6)
+        had = int(getattr(self, 'eblan_cash', 0))
+        if had <= 0:
+            if not silent_ok:
+                self.status.showMessage("Fanum Tax: у тебя и так пусто, держись 🫡", 4000)
+            return
+        self.add_cash(-min(tax, had), "💸 Fanum Tax")
+
+    def brainrot_mewing(self):
+        self.mewing_streak = int(getattr(self, 'mewing_streak', 0)) + 1
+        self.aura += 10
+        self._refresh_aura_label()
+        self.save_settings()
+        self.zoomer_burst("")
+        self.status.showMessage(f"🤫🧏 Mewing streak: {self.mewing_streak} дней (нет)", 4000)
+
+    def brainrot_gyatt(self):
+        lvl = random.randint(0, 100)
+        self.status.showMessage(f"😳 Gyatt level: {lvl}%  ·  {'CERTIFIED 🦅' if lvl > 67 else 'mid 💀'}", 4000)
+
+    def brainrot_sigma_quote(self):
+        QMessageBox.information(self, "🗿 Сигма-цитата", random.choice(SIGMA_QUOTES))
+
+    def brainrot_aura_farm(self):
+        gain = random.randint(50, 670)
+        self.aura = getattr(self, 'aura', 0) + gain
+        self._refresh_aura_label()
+        self.zoomer_burst(f"🌀 AURA FARM +{gain}")
+
+    def brainrot_glaze(self):
+        self.zoomer_burst("🫧 ты лютый чад, не слушай хейтеров")
+        self.status.showMessage("🫧 glazing... ты W, ты сигма, ты 67 🤙", 4000)
+
+    # ---------- Режим Палестины / страдания ----------
+    def enable_suffer_mode(self, *args, **kwargs):
+        """Включает чёрный квадрат страдания. Навсегда (если confirm)."""
+        confirm = kwargs.get("confirm", True)
+        if confirm:
+            ans = QMessageBox.warning(
+                self, "Режим Палестины",
+                "Сейчас включится ЧЁРНЫЙ КВАДРАТ поверх браузера.\n\n"
+                "Он применяется НАВСЕГДА (переживёт перезапуск).\n"
+                "Единственный выход — отстрадать: кликнуть по нему 67 раз.\n\n"
+                "Точно страдать?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+        self.suffer_mode = True
+        self.save_settings()
+        if self.suffer_overlay is None:
+            self.suffer_overlay = SufferOverlay(self)
+        self._position_suffer_overlay()
+        self.suffer_overlay.show()
+        self.suffer_overlay.raise_()
+
+    def disable_suffer_mode(self):
+        """Отстрадал — снимаем квадрат."""
+        self.suffer_mode = False
+        self.save_settings()
+        if self.suffer_overlay is not None:
+            try:
+                self.suffer_overlay.hide()
+                self.suffer_overlay.deleteLater()
+            except Exception:
+                pass
+            self.suffer_overlay = None
+        try:
+            QMessageBox.information(self, "Свобода", "Ты отстрадал. На этот раз. 🕊️")
+        except Exception:
+            pass
+
+    def _position_suffer_overlay(self):
+        if self.suffer_overlay is None:
+            return
+        try:
+            # Накрываем центральную область (веб-контент).
+            central = self.centralWidget()
+            if central is not None:
+                geo = central.geometry()
+                self.suffer_overlay.setGeometry(geo)
+            else:
+                self.suffer_overlay.setGeometry(self.rect())
+            self.suffer_overlay.raise_()
+        except Exception:
+            pass
+
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
         if enabled and not self.is_unlocked("gamer"):
@@ -6913,6 +7167,8 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         if self.fps_overlay is not None and self.fps_overlay.isVisible():
             self._position_fps_overlay()
+        if getattr(self, 'suffer_overlay', None) is not None:
+            self._position_suffer_overlay()
 
     # ------------ Счётчик «Сколько времени проебал» ------------
 
