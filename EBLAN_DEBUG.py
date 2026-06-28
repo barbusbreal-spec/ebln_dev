@@ -8,6 +8,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
 
 import os
+import re
 import requests
 import sys
 import json
@@ -6309,6 +6310,88 @@ class BurmaldaDialog(QDialog):
         self.status.setText(f"Ошибка парсинга: {msg}")
 
 
+class CalculatorDialog(QDialog):
+    """Калькулятор, у которого есть только цифры 1 4 8 6 7 9.
+
+    Остальных цифр (0 2 3 5) просто нет — половину не завезли. На ноль,
+    кстати, не поделишь (кнопки 0 нет). Считает безопасно: ввод только
+    с кнопок, eval без билтинов и с валидацией символов.
+    """
+
+    DIGITS = ["1", "4", "8", "6", "7", "9"]
+    _ALLOWED_RE = re.compile(r"^[0-9+\-*/(). ]+$")
+
+    def __init__(self, main_window=None, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.setWindowTitle("🧮 Калькулятор 148679")
+        self.setMinimumWidth(280)
+
+        root = QVBoxLayout(self)
+
+        note = QLabel("есть только цифры 1 4 8 6 7 9. остальных нет, страдай 🗿")
+        note.setStyleSheet("color: #888; font-size: 11px;")
+        note.setWordWrap(True)
+        root.addWidget(note)
+
+        self.display = QLineEdit()
+        self.display.setReadOnly(True)
+        self.display.setAlignment(Qt.AlignmentFlag.AlignRight)
+        fnt = self.display.font(); fnt.setPointSize(20); self.display.setFont(fnt)
+        root.addWidget(self.display)
+
+        grid = QGridLayout()
+        root.addLayout(grid)
+
+        # Цифры 1 4 8 / 6 7 9
+        for i, d in enumerate(self.DIGITS):
+            b = QPushButton(d)
+            b.clicked.connect(lambda _=False, ch=d: self._press(ch))
+            grid.addWidget(b, i // 3, i % 3)
+
+        # Операторы — отдельной колонкой справа
+        for r, op in enumerate(["+", "-", "*", "/"]):
+            b = QPushButton(op)
+            b.clicked.connect(lambda _=False, ch=op: self._press(ch))
+            grid.addWidget(b, r, 3)
+
+        # Нижний ряд: C, ⌫, =
+        clear_btn = QPushButton("C")
+        clear_btn.clicked.connect(lambda: self.display.clear())
+        grid.addWidget(clear_btn, 2, 0)
+
+        back_btn = QPushButton("⌫")
+        back_btn.clicked.connect(self._backspace)
+        grid.addWidget(back_btn, 2, 1)
+
+        eq_btn = QPushButton("=")
+        eq_btn.clicked.connect(self._equals)
+        grid.addWidget(eq_btn, 2, 2)
+
+    def _press(self, ch):
+        self.display.setText(self.display.text() + ch)
+
+    def _backspace(self):
+        self.display.setText(self.display.text()[:-1])
+
+    def _equals(self):
+        expr = self.display.text().strip()
+        if not expr:
+            return
+        if not self._ALLOWED_RE.match(expr):
+            self.display.setText("ошибка")
+            return
+        try:
+            # Безопасно: только разрешённые символы, без билтинов/имён.
+            result = eval(expr, {"__builtins__": {}}, {})
+            if isinstance(result, float) and result.is_integer():
+                result = int(result)
+            self.display.setText(str(result))
+        except ZeroDivisionError:
+            self.display.setText("на ноль нельзя 🗿")
+        except Exception:
+            self.display.setText("ошибка")
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -6795,6 +6878,11 @@ class MainWindow(QMainWindow):
         burmalda_action.setStatusTip("Галерея ТОЛЬКО безопасных постов e621 (rating: safe). NSFW отключён.")
         burmalda_action.triggered.connect(self.open_burmalda)
         burmalda_menu.addAction(burmalda_action)
+
+        calc_action = QAction("🧮 Калькулятор 148679", self)
+        calc_action.setStatusTip("Калькулятор, у которого есть только цифры 1 4 8 6 7 9")
+        calc_action.triggered.connect(self.open_calculator)
+        br_menu.addAction(calc_action)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -7324,6 +7412,11 @@ class MainWindow(QMainWindow):
     def open_burmalda(self):
         """Бурмалда-режим: SFW-парсер e621 (только rating:s)."""
         dlg = BurmaldaDialog(self)
+        dlg.exec()
+
+    def open_calculator(self):
+        """Калькулятор с цифрами только 1 4 8 6 7 9."""
+        dlg = CalculatorDialog(self)
         dlg.exec()
 
     # ---------- День Ебланов (6 июля) ----------
