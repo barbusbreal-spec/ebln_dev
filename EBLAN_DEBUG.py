@@ -583,6 +583,53 @@ class JumpscareOverlay(QWidget):
             pass
 
 
+class AdOverlay(QWidget):
+    """Полноэкранная «госреклама» (МАКС / VPN убивает). Закрывается кнопкой/кликом."""
+
+    def __init__(self, parent, content):
+        super().__init__(parent, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        self.setStyleSheet(f"background: {content.get('bg', '#0a3d91')};")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(60, 60, 60, 60)
+        lay.addStretch(1)
+
+        title = QLabel(content.get("title", "РЕКЛАМА"))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setWordWrap(True)
+        title.setStyleSheet("color: white; font-size: 40px; font-weight: 900;")
+        lay.addWidget(title)
+
+        body = QLabel(content.get("body", ""))
+        body.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body.setWordWrap(True)
+        body.setStyleSheet("color: #f0f0f0; font-size: 20px; padding: 24px;")
+        lay.addWidget(body)
+
+        btn = QPushButton(content.get("btn", "Закрыть"))
+        btn.setStyleSheet("font-size: 18px; padding: 12px 28px;")
+        btn.clicked.connect(self._close)
+        row = QHBoxLayout(); row.addStretch(1); row.addWidget(btn); row.addStretch(1)
+        lay.addLayout(row)
+
+        hint = QLabel("(это пародия. кликни в любом месте, чтобы закрыть)")
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint.setStyleSheet("color: rgba(255,255,255,0.6); font-size: 12px;")
+        lay.addWidget(hint)
+        lay.addStretch(1)
+
+    def _close(self):
+        try:
+            self.close(); self.deleteLater()
+        except Exception:
+            pass
+
+    def mousePressEvent(self, ev):
+        self._close()
+
+    def keyPressEvent(self, ev):
+        self._close()
+
+
 # Куда класть фото оверлея (берётся первый существующий), иначе фолбэк.
 OVERLAY_IMAGE_CANDIDATES = [
     os.path.join('images', 'kozel_overlay.jpg'),
@@ -1169,6 +1216,30 @@ def is_eblan_day(dt=None):
     """True, если сегодня (или dt) — 6 июля, День Ебланов."""
     dt = dt or datetime.now()
     return (dt.month, dt.day) == EBLAN_DAY
+
+
+# Иностранные домены, которые открывает «режим иноагента».
+INOAGENT_TLDS = [".com", ".org", ".net"]
+
+# Контент госрекламы (всплывает на весь экран каждые 30 сек, если включено).
+AD_NAG_CONTENTS = [
+    {
+        "bg": "#0a3d91",
+        "title": "📲 СКАЧАЙ МЕССЕНДЖЕР МАКС",
+        "body": "Государственный. Безопасный. Обязательный.\n"
+                "Все уже в МАКСе. А ты ещё нет?\n\n"
+                "Установи МАКС — будь как все. 🇷🇺",
+        "btn": "Установлю (нет)",
+    },
+    {
+        "bg": "#7a0000",
+        "title": "⚠️ VPN УБИВАЕТ",
+        "body": "Каждый раз, когда ты включаешь VPN, где-то грустит чиновник.\n"
+                "VPN — это не свобода, это измена. Отключи VPN — спаси Родину.\n\n"
+                "Помни: тебя видно даже через прокси. 👁️",
+        "btn": "Отключаю VPN (нет)",
+    },
+]
 
 
 def get_local_ban_path():
@@ -6446,6 +6517,11 @@ class MainWindow(QMainWindow):
         # ДИКИЙ режим (НЕ персист — всегда через предупреждение)
         self.wild_overlay = None
         self._wild_shake_timer = None
+        # Режим иноагента (.com/.org/.net) + госреклама каждые 30 сек
+        self.inoagent_mode = False
+        self.ad_nag_mode = False
+        self._ad_nag_timer = None
+        self._ad_overlay = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -6509,6 +6585,8 @@ class MainWindow(QMainWindow):
                     self.suffer_mode = bool(data.get("suffer_mode", False))
                     self.chaos_mode = bool(data.get("chaos_mode", False))
                     self.image_overlay_on = bool(data.get("image_overlay_on", False))
+                    self.inoagent_mode = bool(data.get("inoagent_mode", False))
+                    self.ad_nag_mode = bool(data.get("ad_nag_mode", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -6527,6 +6605,13 @@ class MainWindow(QMainWindow):
         self.allowed_exceptions = ['vk.com', 'twgood.serv00.net', 'sites.google.com', 'riba.click', 'update.riba.click', 'chat.mistral.ai'] #Халяль который нужно держать
         self.blocked_domains = ['saberpedia.no', 'mrim.su', 'vscode.dev', 'ovk.to', 'msh356.ru', 'github.com', 'r34.app'] #аллах сервесы, которые нужно блокировать во что бы то ни стало иначе твоя мать умрет от стыда
         self.special_domains = ['localhost'] # Теперь всвязи с тем что децебел сдох блядь а удалять лень
+
+        # Режим иноагента: разрешает иностранные домены (.com/.org/.net).
+        # Сохраняется и применяется на старте (а не как старый одноразовый «патриот»).
+        if getattr(self, 'inoagent_mode', False):
+            for d in INOAGENT_TLDS:
+                if d not in self.allowed_domains:
+                    self.allowed_domains.append(d)
 
         # Load extensions
         self.extensions = load_extensions(self)
@@ -6617,6 +6702,10 @@ class MainWindow(QMainWindow):
         # Фото-оверлей — восстановить, если был включён.
         if getattr(self, 'image_overlay_on', False):
             QTimer.singleShot(1150, lambda: self.set_image_overlay(True))
+
+        # Госреклама — восстановить таймер, если был включён.
+        if getattr(self, 'ad_nag_mode', False):
+            QTimer.singleShot(1200, lambda: self.set_ad_nag_mode(True))
 
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
@@ -6754,6 +6843,14 @@ class MainWindow(QMainWindow):
         eblan_day_action.triggered.connect(self.show_eblan_day)
         help_menu.addAction(eblan_day_action)
 
+        help_menu.addSeparator()
+        self.inoagent_action = QAction("🕵️ Режим иноагента (.com/.org/.net)", self)
+        self.inoagent_action.setCheckable(True)
+        self.inoagent_action.setChecked(getattr(self, 'inoagent_mode', False))
+        self.inoagent_action.setStatusTip("Разрешить иностранные домены. ⚠️ вас посадят.")
+        self.inoagent_action.triggered.connect(lambda c: self.set_inoagent_mode(c))
+        help_menu.addAction(self.inoagent_action)
+
         # ID menu
         id_menu = self.menuBar().addMenu("&DEBUG")
         self.require_id_action = QAction("Требовать EBLAN ID при запуске", self)
@@ -6871,6 +6968,14 @@ class MainWindow(QMainWindow):
         wild_action.setStatusTip("РЕЗКОЕ мигание и вращение. Сначала предупреждение. Клик/ESC — стоп.")
         wild_action.triggered.connect(self.start_wild_mode)
         chaos_menu.addAction(wild_action)
+
+        chaos_menu.addSeparator()
+        self.ad_nag_action = QAction("📢 Госреклама МАКС / VPN убивает (каждые 30 сек)", self)
+        self.ad_nag_action.setCheckable(True)
+        self.ad_nag_action.setChecked(getattr(self, 'ad_nag_mode', False))
+        self.ad_nag_action.setStatusTip("Каждые 30 сек — полноэкранная реклама. Сохраняется.")
+        self.ad_nag_action.triggered.connect(lambda c: self.set_ad_nag_mode(c))
+        chaos_menu.addAction(self.ad_nag_action)
 
         # ---- Меню «🐾 Бурмалда» (e621 SFW-парсер) ----
         burmalda_menu = self.menuBar().addMenu("🐾 &Бурмалда")
@@ -7265,6 +7370,8 @@ class MainWindow(QMainWindow):
                 "suffer_mode": bool(getattr(self, 'suffer_mode', False)),
                 "chaos_mode": bool(getattr(self, 'chaos_mode', False)),
                 "image_overlay_on": bool(getattr(self, 'image_overlay_on', False)),
+                "inoagent_mode": bool(getattr(self, 'inoagent_mode', False)),
+                "ad_nag_mode": bool(getattr(self, 'ad_nag_mode', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -7974,6 +8081,76 @@ class MainWindow(QMainWindow):
     def stop_wild_mode(self):
         if self.wild_overlay is not None:
             self.wild_overlay.stop()
+
+    # ---------- Режим иноагента (.com/.org/.net) ----------
+    def set_inoagent_mode(self, enabled):
+        """Разрешает иностранные домены. Персист. С предупреждением при включении."""
+        if enabled and not self.inoagent_mode:
+            ans = QMessageBox.warning(
+                self, "🕵️ Режим иноагента",
+                "Сейчас откроется доступ к иностранным доменам "
+                "(.com / .org / .net).\n\n"
+                "⚠️ ВНИМАНИЕ: посещая вражеские сайты, ты автоматически "
+                "становишься ИНОAГЕНТОМ.\n"
+                "Тебя внесут в реестр, а потом ПОСАДЯТ. 🚔\n\n"
+                "(Это шутка-пародия. Но домены реально откроются.)\n\n"
+                "Точно стать иноагентом?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                # откатываем чекбокс
+                try:
+                    self.inoagent_action.setChecked(False)
+                except Exception:
+                    pass
+                return
+        self.inoagent_mode = bool(enabled)
+        if self.inoagent_mode:
+            for d in INOAGENT_TLDS:
+                if d not in self.allowed_domains:
+                    self.allowed_domains.append(d)
+            self.status.showMessage("🕵️ Режим иноагента ВКЛ. Жди гостей 🚔", 5000)
+        else:
+            self.allowed_domains = [d for d in self.allowed_domains if d not in INOAGENT_TLDS]
+            self.status.showMessage("Режим иноагента выкл. Ты снова патриот 🇷🇺", 4000)
+        try:
+            self.inoagent_action.setChecked(self.inoagent_mode)
+        except Exception:
+            pass
+        self.save_settings()
+
+    # ---------- Госреклама каждые 30 секунд ----------
+    def set_ad_nag_mode(self, enabled):
+        """Каждые 30 сек — полноэкранная реклама МАКС / «VPN убивает». Персист."""
+        self.ad_nag_mode = bool(enabled)
+        if self.ad_nag_mode:
+            if self._ad_nag_timer is None:
+                self._ad_nag_timer = QTimer(self)
+                self._ad_nag_timer.timeout.connect(self._show_ad)
+            self._ad_nag_timer.start(30000)  # каждые 30 секунд
+            self.status.showMessage("📢 Госреклама активирована. Каждые 30 сек.", 4000)
+        else:
+            if self._ad_nag_timer is not None:
+                self._ad_nag_timer.stop()
+        try:
+            self.ad_nag_action.setChecked(self.ad_nag_mode)
+        except Exception:
+            pass
+        self.save_settings()
+
+    def _show_ad(self):
+        # Не плодим окна: если предыдущее ещё открыто — пропускаем.
+        if self._ad_overlay is not None and self._ad_overlay.isVisible():
+            return
+        content = random.choice(AD_NAG_CONTENTS)
+        try:
+            self._ad_overlay = AdOverlay(self, content)
+            self._ad_overlay.showFullScreen()
+            self._ad_overlay.raise_()
+            self._ad_overlay.activateWindow()
+        except Exception as e:
+            print(f"[ad] {e}")
 
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
