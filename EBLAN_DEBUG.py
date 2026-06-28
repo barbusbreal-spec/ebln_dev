@@ -7155,20 +7155,72 @@ class DolboebPanel(QDialog):
         root.addWidget(btn)
 
 
+class DepAuthPage(QWebEnginePage):
+    """Страница встроенного OAuth-входа: ловит редирект на redirect_uri."""
+
+    def __init__(self, profile, parent, redirect_uri, on_redirect):
+        super().__init__(profile, parent)
+        self._redirect = redirect_uri
+        self._on_redirect = on_redirect
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        try:
+            s = url.toString()
+            if s.startswith(self._redirect):
+                self._on_redirect(s)
+                return False
+        except Exception:
+            pass
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+
+class DepAuthDialog(QDialog):
+    """Окно входа через DEP ID (встроенный webview)."""
+
+    def __init__(self, main_window, auth_url, redirect_uri, on_redirect, parent=None):
+        super().__init__(parent or main_window)
+        self.setWindowTitle("Вход через DEP ID")
+        self.resize(520, 640)
+        lay = QVBoxLayout(self)
+        self._profile = QWebEngineProfile(self)  # OTR, чтобы не мешать основному
+        self._view = QWebEngineView(self)
+        self._page = DepAuthPage(self._profile, self._view, redirect_uri, self._handle)
+        self._view.setPage(self._page)
+        self._on_redirect = on_redirect
+        lay.addWidget(self._view)
+        self._view.setUrl(QUrl(auth_url))
+
+    def _handle(self, redirected_url):
+        try:
+            self._on_redirect(redirected_url)
+        finally:
+            self.accept()
+
+
 class DepDialog(QDialog):
-    """Интеграция с DEP ID (виртуальное казино). DepCoins — НЕ реальные деньги."""
+    """Интеграция с DEP ID (виртуальное казино). DepCoins — НЕ реальные деньги.
+
+    Два способа входа:
+      • API-ключ (просто) — Bearer-ключ из панели разработчика;
+      • OAuth «Войти через DEP ID» — client_id/secret + redirect_uri.
+    """
 
     BASE = "https://zenusus.serv00.net/dep/api/v1"
+    OAUTH_AUTHORIZE = "https://zenusus.serv00.net/dep/oauth/authorize.php"
+    OAUTH_TOKEN = "https://zenusus.serv00.net/dep/oauth/token.php"
 
     _balance = pyqtSignal(dict)
     _spin = pyqtSignal(dict)
     _err = pyqtSignal(str)
+    _token_ok = pyqtSignal(dict)
 
     def __init__(self, main_window, *args, **kwargs):
         super().__init__(main_window, *args, **kwargs)
         self.mw = main_window
+        self._access_token = ""
+        self._state = ""
         self.setWindowTitle("🎲 DEP — виртуальное казино")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(440)
         root = QVBoxLayout(self)
 
         root.addWidget(QLabel("DepCoins — виртуальная валюта (не реальные деньги)."))
@@ -7180,6 +7232,31 @@ class DepDialog(QDialog):
         self.key_in.setPlaceholderText("ключ из DEP ID → Панель разработчика")
         krow.addWidget(self.key_in, 1)
         root.addLayout(krow)
+
+        # --- OAuth «Войти через DEP ID» ---
+        oauth_box = QGroupBox("Или вход через DEP ID (OAuth)")
+        ob = QFormLayout(oauth_box)
+        self.cid_in = QLineEdit(getattr(self.mw, "dep_client_id", "") or "")
+        self.csec_in = QLineEdit(getattr(self.mw, "dep_client_secret", "") or "")
+        self.csec_in.setEchoMode(QLineEdit.EchoMode.Password)
+        self.redir_in = QLineEdit(getattr(self.mw, "dep_redirect_uri", "") or
+                                  "https://eblan.start/depauth/callback")
+        self.redir_in.setReadOnly(True)
+        copy_redir = QPushButton("📋")
+        copy_redir.setFixedWidth(36)
+        copy_redir.clicked.connect(lambda: QApplication.clipboard().setText(self.redir_in.text()))
+        rr = QHBoxLayout(); rr.addWidget(self.redir_in, 1); rr.addWidget(copy_redir)
+        rrw = QWidget(); rrw.setLayout(rr)
+        ob.addRow("client_id:", self.cid_in)
+        ob.addRow("client_secret:", self.csec_in)
+        ob.addRow("redirect_uri:", rrw)
+        login_btn = QPushButton("Войти через DEP ID")
+        login_btn.clicked.connect(self._oauth_login)
+        ob.addRow(login_btn)
+        hint = QLabel("В панели DEP ID впиши этот redirect_uri ↑ (точь-в-точь).")
+        hint.setStyleSheet("color:#9aa3b2; font-size:11px;")
+        ob.addRow(hint)
+        root.addWidget(oauth_box)
 
         self.bal_lbl = QLabel("Баланс: —")
         f = self.bal_lbl.font(); f.setBold(True); self.bal_lbl.setFont(f)
@@ -7205,14 +7282,82 @@ class DepDialog(QDialog):
         self._balance.connect(self._on_balance)
         self._spin.connect(self._on_spin)
         self._err.connect(lambda m: self.result.setText(f"Ошибка: {m}"))
+        self._token_ok.connect(self._on_token)
 
     def _headers(self):
+        # OAuth access_token приоритетнее API-ключа.
+        if self._access_token:
+            return {"Authorization": f"Bearer {self._access_token}", "Content-Type": "application/json"}
         key = self.key_in.text().strip()
-        # сохраняем ключ
         if key and key != getattr(self.mw, "dep_api_key", ""):
             self.mw.dep_api_key = key
             self.mw.save_settings()
         return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    # ---- OAuth ----
+    def _oauth_login(self):
+        cid = self.cid_in.text().strip()
+        csec = self.csec_in.text().strip()
+        redirect = self.redir_in.text().strip()
+        if not cid or not csec:
+            self.result.setText("Заполни client_id и client_secret 🗿")
+            return
+        # сохраняем
+        self.mw.dep_client_id = cid
+        self.mw.dep_client_secret = csec
+        self.mw.dep_redirect_uri = redirect
+        self.mw.save_settings()
+
+        self._state = base64.urlsafe_b64encode(os.urandom(9)).decode().rstrip("=")
+        params = urllib.parse.urlencode({
+            "client_id": cid, "redirect_uri": redirect, "state": self._state,
+        })
+        auth_url = f"{self.OAUTH_AUTHORIZE}?{params}"
+        dlg = DepAuthDialog(self.mw, auth_url, redirect, self._on_redirect, parent=self)
+        dlg.exec()
+
+    def _on_redirect(self, url):
+        try:
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            code = (q.get("code") or [""])[0]
+            state = (q.get("state") or [""])[0]
+            if not code:
+                self.result.setText("DEP не вернул code 🗿"); return
+            if state != self._state:
+                self.result.setText("Неверный state (CSRF) 🛑"); return
+            self._exchange_code(code)
+        except Exception as e:
+            self.result.setText(f"Ошибка редиректа: {e}")
+
+    def _exchange_code(self, code):
+        body = {
+            "grant_type": "authorization_code",
+            "client_id": self.mw.dep_client_id,
+            "client_secret": self.mw.dep_client_secret,
+            "code": code,
+            "redirect_uri": self.mw.dep_redirect_uri,
+        }
+        def work():
+            try:
+                r = requests.post(self.OAUTH_TOKEN, json=body, timeout=20)
+                if r.status_code != 200:
+                    self._err.emit(f"token HTTP {r.status_code}: {r.text[:120]}"); return
+                self._token_ok.emit(r.json())
+            except Exception as e:
+                self._err.emit(str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_token(self, data):
+        self._access_token = data.get("access_token", "") or ""
+        rt = data.get("refresh_token", "")
+        if rt:
+            self.mw.dep_refresh_token = rt
+            self.mw.save_settings()
+        if self._access_token:
+            self.result.setText("✅ Вход через DEP ID выполнен")
+            self._get_balance()
+        else:
+            self.result.setText("Токен не получен 🗿")
 
     def _get_balance(self):
         h = self._headers()
@@ -7377,6 +7522,11 @@ class MainWindow(QMainWindow):
         self.bookmarks = []
         self.vertical_tabs = False
         self.dep_api_key = ""
+        # DEP OAuth
+        self.dep_client_id = ""
+        self.dep_client_secret = ""
+        self.dep_redirect_uri = "https://eblan.start/depauth/callback"
+        self.dep_refresh_token = ""
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -7446,6 +7596,10 @@ class MainWindow(QMainWindow):
                     self.bookmarks = list(data.get("bookmarks", []) or [])
                     self.vertical_tabs = bool(data.get("vertical_tabs", False))
                     self.dep_api_key = data.get("dep_api_key", "") or ""
+                    self.dep_client_id = data.get("dep_client_id", "") or ""
+                    self.dep_client_secret = data.get("dep_client_secret", "") or ""
+                    self.dep_redirect_uri = data.get("dep_redirect_uri", "") or "https://eblan.start/depauth/callback"
+                    self.dep_refresh_token = data.get("dep_refresh_token", "") or ""
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -8360,6 +8514,10 @@ class MainWindow(QMainWindow):
                 "bookmarks": list(getattr(self, 'bookmarks', []) or []),
                 "vertical_tabs": bool(getattr(self, 'vertical_tabs', False)),
                 "dep_api_key": getattr(self, 'dep_api_key', "") or "",
+                "dep_client_id": getattr(self, 'dep_client_id', "") or "",
+                "dep_client_secret": getattr(self, 'dep_client_secret', "") or "",
+                "dep_redirect_uri": getattr(self, 'dep_redirect_uri', "") or "",
+                "dep_refresh_token": getattr(self, 'dep_refresh_token', "") or "",
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
