@@ -6489,6 +6489,278 @@ class CalculatorDialog(QDialog):
             self.display.setText("ошибка")
 
 
+# ============================================================
+#   Своя стартовая страница с анимированными «обоями».
+#   Кнопки — ссылки eblan:<cmd>, перехватываются EblanPage.
+# ============================================================
+def eblan_start_page_html(balance=0, gaming_on=False, rot_level=0):
+    gaming_label = "🎮 ГЕЙМИНГ: ВКЛ 🔥" if gaming_on else "🎮 Включить гейминг-режим"
+    rot_note = ""
+    if rot_level > 0:
+        rot_note = f"<div class='rot'>🤮 браузер подгнил на {rot_level} (выиграй в слотах — подлечишь)</div>"
+    return f"""<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>EBLAN START 6.7</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  html,body {{ margin:0; height:100%; font-family: 'Segoe UI', sans-serif; overflow:hidden; }}
+  body {{
+    background: linear-gradient(-45deg, #1a0033, #001a33, #330022, #002a1a, #2a2a00);
+    background-size: 400% 400%;
+    animation: wp 14s ease infinite;
+    color:#fff; display:flex; flex-direction:column; align-items:center;
+  }}
+  @keyframes wp {{ 0%{{background-position:0% 50%}} 50%{{background-position:100% 50%}} 100%{{background-position:0% 50%}} }}
+  .topbar {{ width:100%; display:flex; justify-content:center; gap:12px; padding:18px; flex-wrap:wrap; }}
+  .btn {{
+    text-decoration:none; color:#fff; font-weight:800; font-size:16px;
+    padding:12px 22px; border-radius:14px; border:2px solid rgba(255,255,255,.35);
+    background:rgba(255,255,255,.08); backdrop-filter:blur(4px); transition:.15s;
+  }}
+  .btn:hover {{ transform:scale(1.06); background:rgba(255,255,255,.18); }}
+  .gaming {{ border-color:#00ff66; box-shadow:0 0 18px #00ff66; }}
+  .logo {{ font-size:90px; margin-top:6vh; animation:spin 9s linear infinite; }}
+  @keyframes spin {{ from{{transform:rotate(0)}} to{{transform:rotate(360deg)}} }}
+  h1 {{ font-size:40px; margin:6px; text-shadow:0 0 16px #0af; }}
+  .bal {{ font-size:20px; color:#ffd33d; font-weight:800; }}
+  form {{ margin-top:22px; }}
+  input[type=text] {{
+    width:min(70vw,560px); padding:14px 18px; font-size:18px; border-radius:30px;
+    border:none; outline:none;
+  }}
+  .emoji {{ position:absolute; font-size:30px; opacity:.5; animation:float 8s ease-in-out infinite; }}
+  @keyframes float {{ 0%,100%{{transform:translateY(0)}} 50%{{transform:translateY(-40px)}} }}
+  .rot {{ margin-top:14px; color:#9acd32; font-weight:700; }}
+  .hint {{ position:absolute; bottom:14px; font-size:12px; opacity:.6; }}
+</style></head>
+<body>
+  <div class="emoji" style="left:8%;top:30%">🗿</div>
+  <div class="emoji" style="left:85%;top:25%;animation-delay:1s">💀</div>
+  <div class="emoji" style="left:20%;top:70%;animation-delay:2s">🤙</div>
+  <div class="emoji" style="left:75%;top:65%;animation-delay:3s">🐐</div>
+  <div class="emoji" style="left:50%;top:18%;animation-delay:1.5s">🔥</div>
+
+  <div class="topbar">
+    <a class="btn gaming" href="eblan:gaming">{gaming_label}</a>
+    <a class="btn" href="eblan:shop">🛒 Магазин</a>
+    <a class="btn" href="eblan:slots">🎰 Слоты</a>
+  </div>
+
+  <div class="logo">🐐</div>
+  <h1>EBLAN BROWSER 6.7</h1>
+  <div class="bal">💰 Еблан Кеш: {balance}</div>
+  {rot_note}
+
+  <form method="get" action="https://ya.ru/search/">
+    <input type="text" name="text" placeholder="искать в Яндексе (или введи адрес) 🔎" autofocus>
+  </form>
+
+  <div class="hint">это твоя стартовая. кнопка сверху — гейминг-режим 🎮</div>
+</body></html>"""
+
+
+class EblanPage(QWebEnginePage):
+    """Страница, которая ловит ссылки eblan:<cmd> и шлёт их в MainWindow."""
+
+    def __init__(self, profile, parent, main_window):
+        super().__init__(profile, parent)
+        self._mw = main_window
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        try:
+            if url.scheme() == "eblan":
+                cmd = (url.path() or url.host() or "").strip("/") or url.toString().split(":", 1)[1]
+                if self._mw is not None:
+                    QTimer.singleShot(0, lambda c=cmd: self._mw.handle_eblan_command(c))
+                return False
+        except Exception:
+            pass
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+
+class RotOverlay(QWidget):
+    """«Гниль» поверх контента: тёмно-зелёные пятна/трещины. Клик-сквозной.
+
+    Интенсивность растёт с rot_level. Лечится выигрышем в слотах.
+    """
+
+    def __init__(self, parent, level=1):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.level = max(1, int(level))
+        self._spots = []
+        self._rebuild()
+
+    def set_level(self, level):
+        self.level = max(0, int(level))
+        self._rebuild()
+        self.update()
+
+    def _rebuild(self):
+        import random as _r
+        _r.seed(1337)  # стабильный узор, не мерцает
+        w = max(self.width(), 800); h = max(self.height(), 600)
+        self._spots = []
+        for _ in range(self.level * 14):
+            self._spots.append((
+                _r.randint(0, w), _r.randint(0, h),
+                _r.randint(20, 90),
+                _r.choice([(40, 70, 20), (60, 80, 25), (30, 50, 15), (70, 60, 20)]),
+            ))
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            alpha = min(230, 60 + self.level * 18)
+            for x, y, rad, (cr, cg, cb) in self._spots:
+                p.setBrush(QColor(cr, cg, cb, alpha))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawEllipse(x - rad, y - rad, rad * 2, rad * 2)
+            if self.level >= 10:
+                p.setPen(QColor(120, 200, 60))
+                f = QFont(); f.setPointSize(34); f.setBold(True); p.setFont(f)
+                p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤮 БРАУЗЕР СГНИЛ 🤮")
+            p.end()
+        except Exception:
+            pass
+
+
+class SlotsDialog(QDialog):
+    """Слоты на Еблан Кеш. Проигрыш в форс-режиме гноит браузер."""
+
+    SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "🐐", "💀"]
+
+    def __init__(self, main_window, forced=False, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.forced = forced
+        self._played = False
+        self._spinning = False
+        self.setWindowTitle("🎰 Слоты EBLAN" + (" — ОБЯЗАТЕЛЬНО" if forced else ""))
+        self.setMinimumWidth(360)
+
+        root = QVBoxLayout(self)
+
+        if forced:
+            warn = QLabel("⏰ Время крутить! Проиграешь — браузер сгниёт. 🤮")
+            warn.setStyleSheet("color:#e0245e; font-weight:800;")
+            warn.setWordWrap(True)
+            root.addWidget(warn)
+
+        self.reels = QLabel("🎰 🎰 🎰")
+        self.reels.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rf = self.reels.font(); rf.setPointSize(48); self.reels.setFont(rf)
+        root.addWidget(self.reels)
+
+        self.info = QLabel()
+        self.info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self.info)
+
+        bet_row = QHBoxLayout()
+        bet_row.addWidget(QLabel("Ставка:"))
+        self.bet_input = QSpinBox()
+        self.bet_input.setRange(0, 100000)
+        self.bet_input.setValue(self._forced_bet() if forced else 10)
+        if forced:
+            self.bet_input.setEnabled(False)
+        bet_row.addWidget(self.bet_input)
+        root.addLayout(bet_row)
+
+        self.spin_btn = QPushButton("КРУТИТЬ 🎰")
+        self.spin_btn.clicked.connect(self._spin)
+        root.addWidget(self.spin_btn)
+
+        self._refresh_info()
+
+    def _forced_bet(self):
+        bal = int(getattr(self.mw, "eblan_cash", 0))
+        return max(0, min(50, bal))
+
+    def _refresh_info(self):
+        self.info.setText(
+            f"💰 Баланс: {int(self.mw.eblan_cash)} · "
+            f"7️⃣7️⃣7️⃣ = x67 · 🐐🐐🐐 = x30 · три в ряд = x10 · пара = x3"
+        )
+
+    def _spin(self):
+        if self._spinning:
+            return
+        bet = int(self.bet_input.value())
+        if bet > int(self.mw.eblan_cash):
+            self.info.setText("Не хватает Еблан Кеш на ставку 🗿")
+            return
+        if bet > 0:
+            self.mw.spend_cash(bet)
+        self._spinning = True
+        self.spin_btn.setEnabled(False)
+
+        self._ticks = 0
+        self._anim = QTimer(self)
+        self._anim.timeout.connect(lambda: self._spin_step(bet))
+        self._anim.start(80)
+
+    def _spin_step(self, bet):
+        self._ticks += 1
+        r = [random.choice(self.SYMBOLS) for _ in range(3)]
+        self.reels.setText("  ".join(r))
+        if self._ticks >= 14:
+            self._anim.stop()
+            self._settle(r, bet)
+
+    def _settle(self, r, bet):
+        self._spinning = False
+        self._played = True
+        self.spin_btn.setEnabled(True)
+
+        if r[0] == r[1] == r[2]:
+            if r[0] == "7️⃣":
+                mult = 67
+            elif r[0] == "🐐":
+                mult = 30
+            else:
+                mult = 10
+        elif r[0] == r[1] or r[1] == r[2] or r[0] == r[2]:
+            mult = 3
+        else:
+            mult = 0
+
+        win = bet * mult
+        if win > 0:
+            self.mw.add_cash(win, "🎰 Выигрыш")
+            self.info.setText(f"🎉 ВЫИГРЫШ x{mult} = +{win} Еблан Кеш!")
+            try:
+                self.mw.zoomer_burst("🎰 JACKPOT 🎉" if mult >= 30 else "🎰 занос!")
+                self.mw.heal_rot(1)  # выигрыш чуть лечит гниль
+            except Exception:
+                pass
+        else:
+            self.info.setText("💀 Проигрыш. Кеш сгорел.")
+            if self.forced:
+                try:
+                    self.mw.rot_browser(1)  # проигрыш в форс-слоте гноит браузер
+                except Exception:
+                    pass
+        self._refresh_info()
+        if self.forced:
+            self.spin_btn.setText("Закрыть")
+            self.spin_btn.clicked.disconnect()
+            self.spin_btn.clicked.connect(self.accept)
+
+    def closeEvent(self, event):
+        # В форс-режиме нельзя сбежать не крутанув — закрытие = принудительный спин.
+        if self.forced and not self._played and not self._spinning:
+            event.ignore()
+            self._spin()
+            return
+        super().closeEvent(event)
+
+    def reject(self):
+        if self.forced and not self._played and not self._spinning:
+            self._spin()
+            return
+        super().reject()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -6548,6 +6820,11 @@ class MainWindow(QMainWindow):
         self.ad_nag_mode = False
         self._ad_nag_timer = None
         self._ad_overlay = None
+        # Слоты (форс каждые 5 мин) + гниль браузера
+        self.rot_level = 0
+        self.rot_overlay = None
+        self._slots_timer = None
+        self._gamer_title_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -6613,6 +6890,7 @@ class MainWindow(QMainWindow):
                     self.image_overlay_on = bool(data.get("image_overlay_on", False))
                     self.inoagent_mode = bool(data.get("inoagent_mode", False))
                     self.ad_nag_mode = bool(data.get("ad_nag_mode", False))
+                    self.rot_level = int(data.get("rot_level", 0) or 0)
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -6733,6 +7011,12 @@ class MainWindow(QMainWindow):
         if getattr(self, 'ad_nag_mode', False):
             QTimer.singleShot(1200, lambda: self.set_ad_nag_mode(True))
 
+        # Слоты вылезают каждые 5 минут.
+        self._start_forced_slots()
+        # Восстановить гниль браузера, если была.
+        if getattr(self, 'rot_level', 0) > 0:
+            QTimer.singleShot(1300, self._apply_rot_overlay)
+
         self.wasted_timer = QTimer(self)
         self.wasted_timer.timeout.connect(self._refresh_wasted_label)
         self.wasted_timer.start(1000)
@@ -6791,6 +7075,12 @@ class MainWindow(QMainWindow):
         shop_btn.setStatusTip("Магазин: разблокируй функции за Еблан Кеш")
         shop_btn.triggered.connect(self.open_shop)
         navtb.addAction(shop_btn)
+
+        # Кнопка гейминг-режима «сверху»
+        gaming_btn = QAction(QIcon(os.path.join('images', 'beta.png')), "🎮 Гейминг", self)
+        gaming_btn.setStatusTip("Врубить гейминг-режим (RGB, FPS 1488, аура)")
+        gaming_btn.triggered.connect(lambda: self.set_gamer_mode(not self.gamer_mode, force=True))
+        navtb.addAction(gaming_btn)
 
         # Tonkeeper 2 (не скам)
         self.tonkeeper_action = QAction(QIcon(os.path.join('images', 'lock-ssl.png')),
@@ -7015,7 +7305,12 @@ class MainWindow(QMainWindow):
         calc_action.triggered.connect(self.open_calculator)
         br_menu.addAction(calc_action)
 
-        self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
+        slots_action = QAction("🎰 Слоты (на Еблан Кеш)", self)
+        slots_action.setStatusTip("Крути слоты на Еблан Кеш. Каждые 5 мин слот вылезает сам.")
+        slots_action.triggered.connect(lambda: self.open_slots(forced=False))
+        br_menu.addAction(slots_action)
+
+        self.add_new_tab(start_page=True)
 
         first_run_file = os.path.join(os.path.dirname(get_settings_path()), "eblan_initiated")
 
@@ -7144,9 +7439,18 @@ class MainWindow(QMainWindow):
         except Exception:
             return False
 
-    def add_new_tab(self, qurl=None, label="Blank"):
-        if qurl is None:
-            qurl = QUrl('https://ya.ru/')
+    def add_new_tab(self, qurl=None, label="Blank", start_page=False):
+        # Стартовая страница EBLAN (свои анимированные обои).
+        if start_page or qurl is None:
+            browser = QWebEngineView()
+            page = EblanPage(self.web_profile, browser, self)
+            browser.setPage(page)
+            i = self.tabs.addTab(browser, "🐐 старт")
+            self.tabs.setCurrentIndex(i)
+            browser.urlChanged.connect(lambda q, b=browser: self.update_urlbar(q, b))
+            browser.loadFinished.connect(lambda ok, i=i, b=browser: self.on_tab_load_finished(i, b))
+            self.load_start_page(browser)
+            return
 
         eb_debug("tab", f"add_new_tab → {qurl.toString()}")
         domain = QUrl(qurl.toString()).host().lower()
@@ -7164,7 +7468,7 @@ class MainWindow(QMainWindow):
             return
 
         browser = QWebEngineView()
-        page = QWebEnginePage(self.web_profile, browser)
+        page = EblanPage(self.web_profile, browser, self)
         browser.setPage(page)
         browser.setUrl(qurl)
         i = self.tabs.addTab(browser, label)
@@ -7398,6 +7702,7 @@ class MainWindow(QMainWindow):
                 "image_overlay_on": bool(getattr(self, 'image_overlay_on', False)),
                 "inoagent_mode": bool(getattr(self, 'inoagent_mode', False)),
                 "ad_nag_mode": bool(getattr(self, 'ad_nag_mode', False)),
+                "rot_level": int(getattr(self, 'rot_level', 0) or 0),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -8189,6 +8494,64 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"[ad] punish: {e}")
 
+    # ---------- Слоты + гниль браузера ----------
+    def open_slots(self, forced=False):
+        dlg = SlotsDialog(self, forced=forced)
+        dlg.exec()
+
+    def _start_forced_slots(self):
+        """Каждые 5 минут принудительно вылезает слот."""
+        if self._slots_timer is None:
+            self._slots_timer = QTimer(self)
+            self._slots_timer.timeout.connect(lambda: self.open_slots(forced=True))
+        self._slots_timer.start(300000)  # 5 минут
+
+    def rot_browser(self, n=1):
+        """Гноим браузер сильнее (проигрыш в форс-слоте)."""
+        self.rot_level = min(12, int(getattr(self, "rot_level", 0)) + int(n))
+        self._apply_rot_overlay()
+        self.save_settings()
+        msg = "🤮 БРАУЗЕР СГНИЛ ОКОНЧАТЕЛЬНО. ПИЗДЕЦ." if self.rot_level >= 10 else \
+              f"🤢 браузер гниёт… уровень {self.rot_level}"
+        self.status.showMessage(msg, 5000)
+
+    def heal_rot(self, n=1):
+        """Подлечиваем гниль (выигрыш в слотах)."""
+        if int(getattr(self, "rot_level", 0)) <= 0:
+            return
+        self.rot_level = max(0, int(self.rot_level) - int(n))
+        self._apply_rot_overlay()
+        self.save_settings()
+
+    def _apply_rot_overlay(self):
+        if int(getattr(self, "rot_level", 0)) <= 0:
+            if self.rot_overlay is not None:
+                try:
+                    self.rot_overlay.hide(); self.rot_overlay.deleteLater()
+                except Exception:
+                    pass
+                self.rot_overlay = None
+            return
+        if self.rot_overlay is None:
+            self.rot_overlay = RotOverlay(self, level=self.rot_level)
+        else:
+            self.rot_overlay.set_level(self.rot_level)
+        self._position_rot_overlay()
+        self.rot_overlay.show()
+        self.rot_overlay.raise_()
+
+    def _position_rot_overlay(self):
+        if self.rot_overlay is None:
+            return
+        try:
+            central = self.centralWidget()
+            geo = central.geometry() if central is not None else self.rect()
+            self.rot_overlay.setGeometry(geo)
+            self.rot_overlay._rebuild()
+            self.rot_overlay.raise_()
+        except Exception:
+            pass
+
     def _show_ad(self):
         # Не плодим окна: если предыдущее ещё открыто — пропускаем.
         if self._ad_overlay is not None and self._ad_overlay.isVisible():
@@ -8202,13 +8565,20 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"[ad] {e}")
 
-    def set_gamer_mode(self, enabled):
-        """Включение/выключение геймерского режима с FPS-оверлеем."""
-        if enabled and not self.is_unlocked("gamer"):
+    def set_gamer_mode(self, enabled, force=False):
+        """Включение/выключение геймерского режима с FPS-оверлеем.
+
+        force=True (кнопка на стартовой) пропускает гейт магазина.
+        """
+        if enabled and not force and not self.is_unlocked("gamer"):
             self.require_feature("gamer")
             if not self.is_unlocked("gamer"):
                 self.gamer_mode = False
                 return
+        # Кнопкой со стартовой разблокируем геймер бесплатно.
+        if enabled and force and not self.is_unlocked("gamer"):
+            self.unlocked_features.append("gamer")
+            self.save_settings()
         self.gamer_mode = bool(enabled)
         if self.gamer_mode:
             if self.fps_overlay is None:
@@ -8216,8 +8586,12 @@ class MainWindow(QMainWindow):
                 self._position_fps_overlay()
             self.fps_overlay.show()
             self.fps_overlay.raise_()
+            self._start_gamer_flair()
+            self.zoomer_burst("🎮 GAMER MODE 🎮 +RGB +FPS +AURA 🔥")
+            self.aura = getattr(self, "aura", 0) + 1337
             try:
-                self.status.showMessage("EBLAN SoftBoost™ активирован!!11", 4000)
+                self.aura_label.setVisible(True)
+                self.status.showMessage("🎮 EBLAN SoftBoost™ + RGB активированы!!11", 4000)
             except Exception:
                 pass
         else:
@@ -8227,6 +8601,30 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
                 self.fps_overlay = None
+            self._stop_gamer_flair()
+
+    def _start_gamer_flair(self):
+        """Гейминг-хуйня: RGB-перелив заголовка окна."""
+        if self._gamer_title_timer is None:
+            self._gamer_title_timer = QTimer(self)
+            self._gamer_title_timer.timeout.connect(self._gamer_title_tick)
+        self._gamer_title_timer.start(120)
+
+    def _stop_gamer_flair(self):
+        if self._gamer_title_timer is not None:
+            self._gamer_title_timer.stop()
+        try:
+            self.setWindowTitle("EBLAN Browser 6.7")
+        except Exception:
+            pass
+
+    def _gamer_title_tick(self):
+        try:
+            frames = ["🎮🟥", "🎮🟧", "🎮🟨", "🎮🟩", "🎮🟦", "🎮🟪"]
+            f = frames[int(time.time() * 5) % len(frames)]
+            self.setWindowTitle(f"{f} EBLAN GAMER 6.7 · {1488} FPS · AURA {getattr(self,'aura',0)}")
+        except Exception:
+            pass
 
     def _position_fps_overlay(self):
         if self.fps_overlay is None:
@@ -8254,6 +8652,8 @@ class MainWindow(QMainWindow):
             self._position_suffer_overlay()
         if getattr(self, 'image_overlay', None) is not None:
             self._position_image_overlay()
+        if getattr(self, 'rot_overlay', None) is not None:
+            self._position_rot_overlay()
 
     # ------------ Счётчик «Сколько времени проебал» ------------
 
@@ -8607,9 +9007,37 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def navigate_home(self):
-        eb_debug("nav", "домой → https://ya.ru/")
-        self.tabs.currentWidget().setUrl(QUrl("https://ya.ru/"))
+        eb_debug("nav", "домой → стартовая EBLAN")
+        w = self.tabs.currentWidget()
+        if isinstance(w, QWebEngineView):
+            self.load_start_page(w)
         self.earn_for_action("домой")
+
+    def load_start_page(self, browser):
+        """Грузит свою анимированную стартовую страницу в данную вкладку."""
+        try:
+            html = eblan_start_page_html(
+                balance=int(getattr(self, "eblan_cash", 0)),
+                gaming_on=bool(getattr(self, "gamer_mode", False)),
+                rot_level=int(getattr(self, "rot_level", 0)),
+            )
+            browser.setHtml(html, QUrl("https://eblan.start/"))
+        except Exception as e:
+            eb_debug("nav", f"start page error: {e}")
+
+    def handle_eblan_command(self, cmd):
+        """Обработка ссылок eblan:<cmd> со стартовой страницы."""
+        cmd = (cmd or "").lower()
+        if cmd == "gaming":
+            self.set_gamer_mode(not getattr(self, "gamer_mode", False), force=True)
+            # перерисуем стартовую, чтобы кнопка отразила состояние
+            w = self.tabs.currentWidget()
+            if isinstance(w, QWebEngineView):
+                self.load_start_page(w)
+        elif cmd == "shop":
+            self.open_shop()
+        elif cmd == "slots":
+            self.open_slots()
 
     def navigate_to_url(self):
         url_text = self.urlbar.text()
