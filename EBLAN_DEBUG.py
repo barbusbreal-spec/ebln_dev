@@ -582,6 +582,25 @@ class JumpscareOverlay(QWidget):
             pass
 
 
+# Куда класть фото оверлея (берётся первый существующий), иначе фолбэк.
+OVERLAY_IMAGE_CANDIDATES = [
+    os.path.join('images', 'kozel_overlay.jpg'),
+    os.path.join('images', 'kozel_overlay.png'),
+    os.path.join('images', 'eblan_overlay.png'),
+    os.path.join('images', 'eblan_overlay.jpg'),
+]
+OVERLAY_IMAGE_FALLBACK = os.path.join('images', 'eblanai.png')
+
+
+def load_overlay_pixmap():
+    for path in OVERLAY_IMAGE_CANDIDATES:
+        if os.path.exists(path):
+            pm = QPixmap(path)
+            if not pm.isNull():
+                return pm
+    return QPixmap(OVERLAY_IMAGE_FALLBACK)
+
+
 class ImageOverlay(QWidget):
     """Фото на весь интерфейс: вращается и ПЛАВНО пульсирует прозрачностью.
 
@@ -590,14 +609,8 @@ class ImageOverlay(QWidget):
     можно пользоваться.
     """
 
-    # Куда положить фото (любой из путей). Если нет — берём фолбэк.
-    CANDIDATES = [
-        os.path.join('images', 'kozel_overlay.jpg'),
-        os.path.join('images', 'kozel_overlay.png'),
-        os.path.join('images', 'eblan_overlay.png'),
-        os.path.join('images', 'eblan_overlay.jpg'),
-    ]
-    FALLBACK = os.path.join('images', 'eblanai.png')
+    CANDIDATES = OVERLAY_IMAGE_CANDIDATES
+    FALLBACK = OVERLAY_IMAGE_FALLBACK
 
     def __init__(self, parent):
         super().__init__(
@@ -618,13 +631,7 @@ class ImageOverlay(QWidget):
         self._timer.start(33)  # ~30 FPS, плавно
 
     def _load_pixmap(self):
-        for path in self.CANDIDATES:
-            if os.path.exists(path):
-                pm = QPixmap(path)
-                if not pm.isNull():
-                    return pm
-        pm = QPixmap(self.FALLBACK)
-        return pm
+        return load_overlay_pixmap()
 
     def reload(self):
         self._pix = self._load_pixmap()
@@ -655,6 +662,92 @@ class ImageOverlay(QWidget):
             p.translate(self.width() / 2, self.height() / 2)
             p.rotate(self._angle)
             p.drawPixmap(-scaled.width() // 2, -scaled.height() // 2, scaled)
+            p.end()
+        except Exception:
+            pass
+
+
+class WildOverlay(QWidget):
+    """ДИКИЙ режим: быстрое мигание цветом + резкое вращение фото.
+
+    ⚠️ ОПАСНО для людей с фоточувствительной эпилепсией. Поэтому:
+      - запускается ТОЛЬКО после явного согласия в предупреждении;
+      - мгновенно останавливается кликом или любой клавишей (ESC);
+      - авто-стоп через FLASH_AUTO_STOP_MS, чтобы эффект не длился долго.
+    """
+
+    FLASH_INTERVAL_MS = 80         # частота мигания
+    FLASH_AUTO_STOP_MS = 15000     # авто-стоп, чтобы никто не «завис» в стробе
+
+    def __init__(self, parent, on_stop=None):
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self._on_stop = on_stop
+        self._pix = load_overlay_pixmap()
+        self._angle = 0.0
+        self._color = QColor(0, 0, 0)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._step)
+        self._timer.start(self.FLASH_INTERVAL_MS)
+        QTimer.singleShot(self.FLASH_AUTO_STOP_MS, self.stop)
+
+    def _step(self):
+        self._angle = (self._angle + random.randint(40, 120)) % 360.0
+        self._color = QColor(
+            random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+        )
+        self.update()
+
+    def stop(self):
+        try:
+            self._timer.stop()
+        except Exception:
+            pass
+        cb = self._on_stop
+        self._on_stop = None
+        try:
+            self.close(); self.deleteLater()
+        except Exception:
+            pass
+        if cb:
+            try:
+                cb()
+            except Exception:
+                pass
+
+    # Любой клик или клавиша — немедленный стоп.
+    def mousePressEvent(self, ev):
+        self.stop()
+
+    def keyPressEvent(self, ev):
+        self.stop()
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), self._color)
+            if self._pix is not None and not self._pix.isNull():
+                p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+                side = int(max(self.width(), self.height()) * 1.4)
+                scaled = self._pix.scaled(
+                    side, side,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                p.translate(self.width() / 2, self.height() / 2)
+                p.rotate(self._angle)
+                p.drawPixmap(-scaled.width() // 2, -scaled.height() // 2, scaled)
+                p.resetTransform()
+            p.setPen(QColor(255, 255, 255))
+            f = QFont(); f.setPointSize(12); f.setBold(True); p.setFont(f)
+            p.drawText(self.rect().adjusted(0, 0, 0, -20),
+                       Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom,
+                       "клик или ESC — СТОП")
             p.end()
         except Exception:
             pass
@@ -6071,6 +6164,9 @@ class MainWindow(QMainWindow):
         # Фото-оверлей на весь интерфейс
         self.image_overlay_on = False
         self.image_overlay = None
+        # ДИКИЙ режим (НЕ персист — всегда через предупреждение)
+        self.wild_overlay = None
+        self._wild_shake_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -6490,6 +6586,12 @@ class MainWindow(QMainWindow):
             "Фото из images/kozel_overlay.jpg поверх всего интерфейса. Сохраняется.")
         self.image_overlay_action.triggered.connect(lambda c: self.set_image_overlay(c))
         chaos_menu.addAction(self.image_overlay_action)
+
+        chaos_menu.addSeparator()
+        wild_action = QAction("⚡ ДИКИЙ режим (мигание+вращение) — ⚠️ эпилепсия", self)
+        wild_action.setStatusTip("РЕЗКОЕ мигание и вращение. Сначала предупреждение. Клик/ESC — стоп.")
+        wild_action.triggered.connect(self.start_wild_mode)
+        chaos_menu.addAction(wild_action)
 
         self.add_new_tab(QUrl('https://ya.ru/'), 'домой')
 
@@ -7508,6 +7610,69 @@ class MainWindow(QMainWindow):
             self.image_overlay.raise_()
         except Exception:
             pass
+
+    # ---------- ДИКИЙ режим (мигание + вращение) ----------
+    def start_wild_mode(self):
+        """Дикое мигание+вращение. Только после явного согласия в предупреждении."""
+        if self.wild_overlay is not None:
+            return
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("⚠️ ПРЕДУПРЕЖДЕНИЕ О ФОТОЧУВСТВИТЕЛЬНОСТИ")
+        box.setText("ВНИМАНИЕ: дикое мигание и вращение")
+        box.setInformativeText(
+            "Сейчас включится РЕЗКОЕ МИГАНИЕ яркими цветами и быстрое вращение.\n\n"
+            "Это может вызвать приступ у людей с фоточувствительной эпилепсией.\n"
+            "Если у тебя или рядом есть склонные к приступам — НЕ ВКЛЮЧАЙ.\n\n"
+            "В любой момент: клик мышью или клавиша ESC — мгновенный СТОП.\n"
+            "Также эффект сам выключится через 15 секунд.\n\n"
+            "Точно запустить? (по умолчанию — НЕТ)"
+        )
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        box.button(QMessageBox.StandardButton.Yes).setText("Да, я понимаю риск")
+        box.button(QMessageBox.StandardButton.No).setText("Нет, не надо")
+        if box.exec() != QMessageBox.StandardButton.Yes:
+            return
+
+        self.wild_overlay = WildOverlay(self, on_stop=self._on_wild_stopped)
+        try:
+            self.wild_overlay.setGeometry(self.geometry())
+            self.wild_overlay.show()
+            self.wild_overlay.raise_()
+            self.wild_overlay.activateWindow()
+            self.wild_overlay.setFocus()
+        except Exception:
+            pass
+
+        # Непрерывная тряска окна на время дикого режима.
+        if self._wild_shake_timer is None:
+            self._wild_shake_timer = QTimer(self)
+            origin = self.pos()
+
+            def _shake():
+                try:
+                    dx = random.randint(-18, 18); dy = random.randint(-18, 18)
+                    self.move(origin.x() + dx, origin.y() + dy)
+                except Exception:
+                    pass
+            self._wild_shake_timer.timeout.connect(_shake)
+            self._wild_shake_timer._origin = origin
+            self._wild_shake_timer.start(60)
+
+    def _on_wild_stopped(self):
+        self.wild_overlay = None
+        if self._wild_shake_timer is not None:
+            try:
+                self._wild_shake_timer.stop()
+                self.move(self._wild_shake_timer._origin)
+            except Exception:
+                pass
+            self._wild_shake_timer = None
+
+    def stop_wild_mode(self):
+        if self.wild_overlay is not None:
+            self.wild_overlay.stop()
 
     def set_gamer_mode(self, enabled):
         """Включение/выключение геймерского режима с FPS-оверлеем."""
