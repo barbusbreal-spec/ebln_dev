@@ -22,6 +22,9 @@ import socket
 import subprocess
 import threading
 import urllib.parse
+import queue
+import secrets
+import http.server
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
@@ -6702,6 +6705,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
         tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
         tile("eblan:zmode", "🇷🇺", "Z режим", "67 вкладок + гимн"),
         tile("eblan:dep", "🎲", "DEP", "виртуальное казино"),
+        tile("eblan:console", "🏢", "Консоль", "управление (http://eblan)"),
         tile("eblan:cheats", "🧩", "Читы", "панель кодов"),
         tile("eblan:keygen", "🔑", "Keygen", "ключи WinRAR"),
         tile("eblan:cert", "🛡️", "Сертификаты", "Минцифры · Еблан Секьюр"),
@@ -7660,6 +7664,170 @@ class SoulAgreementDialog(QDialog):
         self.accept()
 
 
+# ============================================================
+#   Локальный сервер управления (корпоративная консоль à la Chrome).
+#   Крутится на 127.0.0.1:MGMT_PORT, открывается по http://eblan.
+#   HTTP-поток только читает снапшот и кладёт действия в очередь;
+#   все операции с Qt выполняет главный поток (см. MainWindow._mgmt_tick).
+# ============================================================
+MGMT_HOST = "127.0.0.1"
+MGMT_PORT = 6767
+
+
+class _MgmtState:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.snapshot = {"clients": [], "info": {}}
+        self.actions = queue.Queue()
+        self.token = secrets.token_hex(8)
+
+
+_MGMT = _MgmtState()
+
+
+class _MgmtHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass  # тишина
+
+    def _send(self, code, body, ctype="text/html; charset=utf-8"):
+        data = body.encode("utf-8") if isinstance(body, str) else body
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        try:
+            self.wfile.write(data)
+        except Exception:
+            pass
+
+    def do_GET(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path in ("/", "/dashboard", "/index.html"):
+            self._send(200, _mgmt_dashboard_html())
+        elif path == "/api/state":
+            with _MGMT.lock:
+                snap = json.dumps(_MGMT.snapshot, ensure_ascii=False)
+            self._send(200, snap, "application/json; charset=utf-8")
+        else:
+            self._send(404, "404")
+
+    def do_POST(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path != "/api/action":
+            self._send(404, "404"); return
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(n) or b"{}")
+        except Exception:
+            self._send(400, json.dumps({"error": "bad json"}), "application/json"); return
+        if body.get("token") != _MGMT.token:
+            self._send(403, json.dumps({"error": "forbidden"}), "application/json"); return
+        _MGMT.actions.put(body)
+        self._send(200, json.dumps({"ok": True}), "application/json")
+
+
+def _mgmt_dashboard_html():
+    token = _MGMT.token
+    return f"""<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<title>EBLAN — Консоль управления</title><style>
+ *{{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',sans-serif}}
+ body{{background:#202124;color:#e8eaed;padding:24px}}
+ h1{{font-size:22px;margin-bottom:4px}} .sub{{color:#9aa0a6;font-size:13px;margin-bottom:20px}}
+ .card{{background:#292a2d;border:1px solid #3c4043;border-radius:10px;padding:16px;margin-bottom:16px}}
+ .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}}
+ .kv{{font-size:13px;color:#9aa0a6}} .kv b{{color:#e8eaed}}
+ table{{width:100%;border-collapse:collapse;font-size:13px}}
+ th,td{{text-align:left;padding:8px;border-bottom:1px solid #3c4043}}
+ th{{color:#9aa0a6;font-weight:600}}
+ button,input{{font-family:inherit;font-size:13px}}
+ button{{background:#3c4043;color:#e8eaed;border:1px solid #5f6368;border-radius:8px;padding:7px 12px;cursor:pointer}}
+ button:hover{{border-color:#8ab4f8}}
+ input[type=text]{{background:#202124;color:#e8eaed;border:1px solid #3c4043;border-radius:8px;padding:7px 10px;width:280px}}
+ .accent{{color:#8ab4f8}} .row{{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}}
+</style></head><body>
+ <h1>🏢 EBLAN — Консоль управления</h1>
+ <div class="sub">Корпоративное управление браузером и активными клиентами · 127.0.0.1:{MGMT_PORT}</div>
+
+ <div class="card"><div class="grid" id="info"></div></div>
+
+ <div class="card">
+   <h3 style="margin-bottom:10px">Открыть страницу у клиента</h3>
+   <div class="row">
+     <input type="text" id="openurl" placeholder="https://vk.com">
+     <button onclick="act({{action:'open_url',url:document.getElementById('openurl').value}})">Открыть новую вкладку</button>
+   </div>
+   <div class="row">
+     <button onclick="act({{action:'toggle',mode:'gaming'}})">🎮 Гейминг вкл/выкл</button>
+     <button onclick="act({{action:'toggle',mode:'chaos'}})">💥 Хаос вкл/выкл</button>
+     <button onclick="msg()">📢 Сообщение клиентам</button>
+     <button onclick="load()">🔄 Обновить</button>
+   </div>
+ </div>
+
+ <div class="card">
+   <h3 style="margin-bottom:10px">Активные клиенты (вкладки/окна)</h3>
+   <table><thead><tr><th>#</th><th>Заголовок</th><th>URL</th><th>Действия</th></tr></thead>
+   <tbody id="clients"></tbody></table>
+ </div>
+
+<script>
+const TOKEN={token!r};
+async function act(payload){{
+  payload.token=TOKEN;
+  await fetch('/api/action',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
+  setTimeout(load,300);
+}}
+function msg(){{const t=prompt('Сообщение всем клиентам:');if(t)act({{action:'message',text:t}});}}
+async function load(){{
+  const s=await (await fetch('/api/state')).json();
+  const i=s.info||{{}};
+  document.getElementById('info').innerHTML=
+    `<div class="kv">Версия: <b>${{i.version||'?'}}</b></div>`+
+    `<div class="kv">Клиентов: <b class="accent">${{(s.clients||[]).length}}</b></div>`+
+    `<div class="kv">Еблан Кеш: <b>${{i.cash??'?'}}</b></div>`+
+    `<div class="kv">Гейминг: <b>${{i.gaming?'ВКЛ':'выкл'}}</b></div>`+
+    `<div class="kv">Хаос: <b>${{i.chaos?'ВКЛ':'выкл'}}</b></div>`+
+    `<div class="kv">Госреклама: <b>${{i.ad?'ВКЛ':'выкл'}}</b></div>`;
+  document.getElementById('clients').innerHTML=(s.clients||[]).map(c=>
+    `<tr><td>${{c.index}}</td><td>${{c.title||''}}</td><td style="max-width:340px;overflow:hidden;text-overflow:ellipsis">${{c.url||''}}</td>`+
+    `<td><button onclick="act({{action:'focus_tab',index:${{c.index}}}})">Фокус</button> `+
+    `<button onclick="act({{action:'close_tab',index:${{c.index}}}})">Закрыть</button></td></tr>`).join('');
+}}
+load(); setInterval(load,2500);
+</script></body></html>"""
+
+
+class ManagementServer:
+    """Поднимает HTTP-сервер управления в фоновом потоке."""
+
+    def __init__(self, host=MGMT_HOST, port=MGMT_PORT):
+        self.host, self.port = host, port
+        self._httpd = None
+        self._thread = None
+
+    def start(self):
+        if self._httpd is not None:
+            return True
+        try:
+            self._httpd = http.server.ThreadingHTTPServer((self.host, self.port), _MgmtHandler)
+        except Exception as e:
+            print(f"[mgmt] не поднялся: {e}")
+            self._httpd = None
+            return False
+        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self):
+        if self._httpd is not None:
+            try:
+                self._httpd.shutdown()
+                self._httpd.server_close()
+            except Exception:
+                pass
+            self._httpd = None
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -7734,6 +7902,10 @@ class MainWindow(QMainWindow):
         self.dep_client_secret = DEP_CLIENT_SECRET
         self.dep_redirect_uri = "https://eblan.start/depauth/callback"
         self.dep_refresh_token = ""
+        # Локальный сервер управления (корпоративная консоль)
+        self.mgmt_enabled = False
+        self._mgmt_server = None
+        self._mgmt_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -7807,6 +7979,7 @@ class MainWindow(QMainWindow):
                     self.dep_client_secret = data.get("dep_client_secret", "") or DEP_CLIENT_SECRET
                     self.dep_redirect_uri = data.get("dep_redirect_uri", "") or "https://eblan.start/depauth/callback"
                     self.dep_refresh_token = data.get("dep_refresh_token", "") or ""
+                    self.mgmt_enabled = bool(data.get("mgmt_enabled", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -7824,7 +7997,7 @@ class MainWindow(QMainWindow):
         self.allowed_domains = ['.ru', '.su', '.uz', '.by', '.cn', '.рф', '.xyz'] #Рунет и союзные зоны, которые нужно держать во что бы то ни стало иначе твоя мать умрет от стыда
         self.allowed_exceptions = ['vk.com', 'twgood.serv00.net', 'sites.google.com', 'riba.click', 'update.riba.click', 'chat.mistral.ai'] #Халяль который нужно держать
         self.blocked_domains = ['saberpedia.no', 'mrim.su', 'vscode.dev', 'ovk.to', 'msh356.ru', 'github.com', 'r34.app'] #аллах сервесы, которые нужно блокировать во что бы то ни стало иначе твоя мать умрет от стыда
-        self.special_domains = ['localhost'] # Теперь всвязи с тем что децебел сдох блядь а удалять лень
+        self.special_domains = ['localhost', '127.0.0.1', 'eblan'] # + локальная консоль управления
 
         # Режим иноагента: разрешает иностранные домены (.com/.org/.net).
         # Сохраняется и применяется на старте (а не как старый одноразовый «патриот»).
@@ -7940,6 +8113,9 @@ class MainWindow(QMainWindow):
         # EblanBoost — восстановить, если был включён.
         if getattr(self, 'eblanboost_on', False):
             QTimer.singleShot(1400, lambda: self.set_eblanboost(True))
+        # Консоль управления — поднять, если была включена.
+        if getattr(self, 'mgmt_enabled', False):
+            QTimer.singleShot(1500, lambda: self.set_mgmt_server(True))
         # Флаг установщика «долбаёбские функции» (Windows-реестр).
         QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
@@ -8316,6 +8492,13 @@ class MainWindow(QMainWindow):
         dep_action.setStatusTip("Интеграция с DEP ID — баланс DepCoins и слоты (виртуальные)")
         dep_action.triggered.connect(self.open_dep)
         br_menu.addAction(dep_action)
+
+        self.mgmt_action = QAction("🏢 Консоль управления (http://eblan)", self)
+        self.mgmt_action.setCheckable(True)
+        self.mgmt_action.setChecked(getattr(self, 'mgmt_enabled', False))
+        self.mgmt_action.setStatusTip("Локальный сервер управления браузером и клиентами")
+        self.mgmt_action.triggered.connect(lambda c: (self.set_mgmt_server(c), c and self.open_eblan_console()))
+        br_menu.addAction(self.mgmt_action)
 
         self.vtabs_action = QAction("↕️ Вертикальные вкладки", self)
         self.vtabs_action.setCheckable(True)
@@ -8741,6 +8924,7 @@ class MainWindow(QMainWindow):
                 "dep_client_secret": getattr(self, 'dep_client_secret', "") or "",
                 "dep_redirect_uri": getattr(self, 'dep_redirect_uri', "") or "",
                 "dep_refresh_token": getattr(self, 'dep_refresh_token', "") or "",
+                "mgmt_enabled": bool(getattr(self, 'mgmt_enabled', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -9000,6 +9184,116 @@ class MainWindow(QMainWindow):
     # ---------- DEP (виртуальное казино) ----------
     def open_dep(self):
         DepDialog(self).exec()
+
+    # ---------- Локальный сервер управления ----------
+    def set_mgmt_server(self, enabled):
+        """Вкл/выкл корпоративную консоль на http://eblan (127.0.0.1:6767)."""
+        self.mgmt_enabled = bool(enabled)
+        if self.mgmt_enabled:
+            if self._mgmt_server is None:
+                self._mgmt_server = ManagementServer()
+            ok = self._mgmt_server.start()
+            if not ok:
+                self.status.showMessage("Консоль не поднялась (порт занят?)", 5000)
+                self.mgmt_enabled = False
+            else:
+                if self._mgmt_timer is None:
+                    self._mgmt_timer = QTimer(self)
+                    self._mgmt_timer.timeout.connect(self._mgmt_tick)
+                self._mgmt_timer.start(1000)
+                self._mgmt_tick()
+                self.status.showMessage(
+                    f"🏢 Консоль управления: http://eblan  (токен: {_MGMT.token})", 8000)
+        else:
+            if self._mgmt_timer is not None:
+                self._mgmt_timer.stop()
+            if self._mgmt_server is not None:
+                self._mgmt_server.stop()
+                self._mgmt_server = None
+        try:
+            self.mgmt_action.setChecked(self.mgmt_enabled)
+        except Exception:
+            pass
+        self.save_settings()
+
+    def open_eblan_console(self):
+        """Открыть консоль управления (поднимет сервер, если выключен)."""
+        if not self.mgmt_enabled:
+            self.set_mgmt_server(True)
+        if self.mgmt_enabled:
+            self.add_new_tab(QUrl(f"http://{MGMT_HOST}:{MGMT_PORT}/"), "🏢 Консоль")
+
+    def _mgmt_snapshot(self):
+        clients = []
+        try:
+            for i in range(self.tabs.count()):
+                w = self.tabs.widget(i)
+                url = title = ""
+                try:
+                    url = w.url().toString(); title = self.tabs.tabText(i)
+                except Exception:
+                    pass
+                clients.append({"index": i, "title": title, "url": url})
+        except Exception:
+            pass
+        return {
+            "clients": clients,
+            "info": {
+                "version": self.current_version,
+                "cash": int(getattr(self, "eblan_cash", 0)),
+                "gaming": bool(getattr(self, "gamer_mode", False)),
+                "chaos": bool(getattr(self, "chaos_mode", False)),
+                "ad": bool(getattr(self, "ad_nag_mode", False)),
+            },
+        }
+
+    def _mgmt_tick(self):
+        # Обновляем снапшот и выполняем команды из очереди (в главном потоке).
+        try:
+            snap = self._mgmt_snapshot()
+            with _MGMT.lock:
+                _MGMT.snapshot = snap
+        except Exception:
+            pass
+        while True:
+            try:
+                act = _MGMT.actions.get_nowait()
+            except queue.Empty:
+                break
+            except Exception:
+                break
+            try:
+                self._mgmt_do(act)
+            except Exception as e:
+                print(f"[mgmt] action error: {e}")
+
+    def _mgmt_do(self, act):
+        a = act.get("action")
+        if a == "open_url":
+            url = (act.get("url") or "").strip()
+            if url:
+                if "://" not in url:
+                    url = "https://" + url
+                self.add_new_tab(QUrl(url), "🏢 от консоли")
+        elif a == "close_tab":
+            idx = int(act.get("index", -1))
+            if 0 <= idx < self.tabs.count() and self.tabs.count() > 1:
+                self.tabs.removeTab(idx)
+        elif a == "focus_tab":
+            idx = int(act.get("index", -1))
+            if 0 <= idx < self.tabs.count():
+                self.tabs.setCurrentIndex(idx)
+                self.raise_(); self.activateWindow()
+        elif a == "toggle":
+            mode = act.get("mode")
+            if mode == "gaming":
+                self.set_gamer_mode(not self.gamer_mode, force=True)
+            elif mode == "chaos":
+                self.set_chaos_mode(not getattr(self, "chaos_mode", False))
+        elif a == "message":
+            txt = act.get("text") or ""
+            if txt:
+                QMessageBox.information(self, "📢 Сообщение от администратора", txt)
 
     # ---------- Вертикальные вкладки ----------
     def apply_vertical_tabs(self):
@@ -10352,6 +10646,8 @@ class MainWindow(QMainWindow):
             self.open_gta6()
         elif cmd == "plus":
             self.open_plus()
+        elif cmd == "console":
+            self.open_eblan_console()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
@@ -10361,6 +10657,18 @@ class MainWindow(QMainWindow):
     def navigate_to_url(self):
         url_text = self.urlbar.text()
         eb_debug("nav", f"переход по адресной строке: {url_text!r}")
+
+        # http://eblan → локальная консоль управления (поднимаем при надобности).
+        _t = url_text.strip().lower().rstrip("/")
+        if _t in ("eblan", "http://eblan", "https://eblan", "eblan:console"):
+            if not self.mgmt_enabled:
+                self.set_mgmt_server(True)
+            if self.mgmt_enabled:
+                self.tabs.currentWidget().setUrl(QUrl(f"http://{MGMT_HOST}:{MGMT_PORT}/"))
+            else:
+                QMessageBox.warning(self, "Консоль", "Не удалось поднять консоль управления.")
+            return
+
         q = QUrl(url_text)
         if q.scheme() == "":
             q.setScheme("https")
