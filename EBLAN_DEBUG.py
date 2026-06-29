@@ -6702,6 +6702,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
         tile("eblan:plus", "💎", "EBLAN++++++", "20 тарифов подписки"),
         tile("eblan:steam2", "🎮", "Steam 2", "крутые игры"),
         tile("eblan:gta6", "🚗", "GTA VI", "рабочая, без багов"),
+        tile("eblan:undertale", "⚔️", "Undertale", "бой против yeban"),
         tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
         tile("eblan:zmode", "🇷🇺", "Z режим", "67 вкладок + гимн"),
         tile("eblan:dep", "🎲", "DEP", "виртуальное казино"),
@@ -7605,6 +7606,248 @@ class Gta6Dialog(QDialog):
             pass
 
 
+class UndertaleBattle(QWidget):
+    """Коробка боя: душа-сердечко уворачивается от пуль (фаза атаки врага)."""
+
+    BOX = (40, 12, 360, 150)  # x, y, w, h
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(440, 178)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        bx, by, bw, bh = self.BOX
+        self.soul = [bx + bw // 2, by + bh // 2]
+        self.bullets = []
+        self.dodging = False
+        self._ticks = 0
+        self._dur = 0
+        self.on_hit = None
+        self.on_done = None
+        self._t = QTimer(self)
+        self._t.timeout.connect(self._tick)
+        self._t.start(40)
+
+    def start_dodge(self, dur_ticks=85):
+        bx, by, bw, bh = self.BOX
+        self.soul = [bx + bw // 2, by + bh // 2]
+        self.bullets = []
+        self.dodging = True
+        self._ticks = 0
+        self._dur = dur_ticks
+        self.setFocus()
+
+    def keyPressEvent(self, e):
+        if not self.dodging:
+            return
+        bx, by, bw, bh = self.BOX
+        s = 13
+        k = e.key()
+        if k in (Qt.Key.Key_Left, Qt.Key.Key_A):
+            self.soul[0] -= s
+        elif k in (Qt.Key.Key_Right, Qt.Key.Key_D):
+            self.soul[0] += s
+        elif k in (Qt.Key.Key_Up, Qt.Key.Key_W):
+            self.soul[1] -= s
+        elif k in (Qt.Key.Key_Down, Qt.Key.Key_S):
+            self.soul[1] += s
+        self.soul[0] = max(bx + 7, min(bx + bw - 7, self.soul[0]))
+        self.soul[1] = max(by + 7, min(by + bh - 7, self.soul[1]))
+        self.update()
+
+    def _spawn(self):
+        bx, by, bw, bh = self.BOX
+        sp = 7
+        side = random.choice("lrtb")
+        if side == "l":
+            self.bullets.append([bx, random.randint(by, by + bh), sp, 0])
+        elif side == "r":
+            self.bullets.append([bx + bw, random.randint(by, by + bh), -sp, 0])
+        elif side == "t":
+            self.bullets.append([random.randint(bx, bx + bw), by, 0, sp])
+        else:
+            self.bullets.append([random.randint(bx, bx + bw), by + bh, 0, -sp])
+
+    def _tick(self):
+        if self.dodging:
+            self._ticks += 1
+            if self._ticks % 5 == 0:
+                self._spawn()
+            for b in self.bullets:
+                b[0] += b[2]; b[1] += b[3]
+            self.bullets = [b for b in self.bullets if -30 < b[0] < 470 and -30 < b[1] < 210]
+            for b in self.bullets:
+                if abs(b[0] - self.soul[0]) < 9 and abs(b[1] - self.soul[1]) < 9:
+                    self.dodging = False
+                    cb = self.on_hit
+                    if cb:
+                        cb()
+                    self.update()
+                    return
+            if self._ticks >= self._dur:
+                self.dodging = False
+                cb = self.on_done
+                if cb:
+                    cb()
+        self.update()
+
+    def paintEvent(self, event):
+        try:
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(0, 0, 0))
+            bx, by, bw, bh = self.BOX
+            p.setPen(QPen(QColor(255, 255, 255), 3))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(bx, by, bw, bh)
+            p.setBrush(QColor(255, 255, 255)); p.setPen(Qt.PenStyle.NoPen)
+            for b in self.bullets:
+                p.drawRect(int(b[0]) - 4, int(b[1]) - 4, 8, 8)
+            # душа
+            f = QFont(); f.setPointSize(13); p.setFont(f)
+            p.drawText(self.soul[0] - 8, self.soul[1] + 7, "❤")
+            if not self.dodging and not self.bullets:
+                p.setPen(QColor(120, 120, 120)); fs = QFont(); fs.setPointSize(10); p.setFont(fs)
+                p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "* стрелки/WASD — уворот")
+            p.end()
+        except Exception:
+            pass
+
+
+class UndertaleDialog(QDialog):
+    """Бой против yeban: у него 67 HP (ты бьёшь по 1), он хуярит на 99."""
+
+    ENEMY_HP = 67
+    PLAYER_HP = 92
+    ENEMY_DMG = 99
+
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(main_window, *args, **kwargs)
+        self.mw = main_window
+        self.setWindowTitle("⚔️ UNDERTALE: yeban")
+        self.setStyleSheet("background:#000; color:#fff;")
+        root = QVBoxLayout(self)
+
+        top = QHBoxLayout()
+        self.sprite = QLabel()
+        pm = QPixmap(img("yeban.png"))
+        if not pm.isNull():
+            self.sprite.setPixmap(pm.scaledToWidth(120, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self.sprite.setText("👹"); self.sprite.setStyleSheet("font-size:80px;")
+        top.addWidget(self.sprite)
+        info = QVBoxLayout()
+        nm = QLabel("YEBAN"); nm.setStyleSheet("color:#fff;font-size:20px;font-weight:800;")
+        info.addWidget(nm)
+        self.enemy_lbl = QLabel(); self.enemy_lbl.setStyleSheet("color:#ff5555;font-weight:700;")
+        info.addWidget(self.enemy_lbl)
+        info.addStretch(1)
+        top.addLayout(info, 1)
+        root.addLayout(top)
+
+        self.status = QLabel("* yeban преграждает путь. (ибо нехуй)")
+        self.status.setStyleSheet("color:#fff; font-family:'Courier New',monospace; font-size:14px;")
+        self.status.setWordWrap(True)
+        root.addWidget(self.status)
+
+        self.battle = UndertaleBattle(self)
+        self.battle.on_hit = self._enemy_landed
+        self.battle.on_done = self._enemy_turn_done
+        root.addWidget(self.battle, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+        self.player_lbl = QLabel(); self.player_lbl.setStyleSheet("color:#ffd33d;font-weight:700;")
+        root.addWidget(self.player_lbl)
+
+        btns = QHBoxLayout()
+        self.fight_btn = QPushButton("⚔ FIGHT"); self.fight_btn.clicked.connect(self._fight)
+        self.act_btn = QPushButton("💬 ACT"); self.act_btn.clicked.connect(self._act)
+        self.mercy_btn = QPushButton("🙏 MERCY"); self.mercy_btn.clicked.connect(self._mercy)
+        for b in (self.fight_btn, self.act_btn, self.mercy_btn):
+            b.setStyleSheet("background:#111;color:#ffd33d;border:2px solid #ffd33d;"
+                            "border-radius:6px;padding:8px 14px;font-weight:800;")
+            btns.addWidget(b)
+        root.addLayout(btns)
+
+        self.reset()
+
+    def reset(self):
+        self.enemy_hp = self.ENEMY_HP
+        self.player_hp = self.PLAYER_HP
+        self.over = False
+        self.status.setText("* yeban преграждает путь. (ибо нехуй)")
+        self._set_buttons(True)
+        self._refresh()
+
+    def _refresh(self):
+        self.enemy_lbl.setText(f"HP: {max(0,self.enemy_hp)} / {self.ENEMY_HP}")
+        self.player_lbl.setText(f"❤ TP: {max(0,self.player_hp)} / {self.PLAYER_HP}")
+
+    def _set_buttons(self, on):
+        for b in (self.fight_btn, self.act_btn, self.mercy_btn):
+            b.setEnabled(on)
+
+    def _fight(self):
+        if self.over:
+            self.reset(); return
+        if self.battle.dodging:
+            return
+        self.enemy_hp -= 1
+        self.status.setText("* Ты ударил yeban'а. -1 HP 🗡️")
+        self._refresh()
+        if self.enemy_hp <= 0:
+            self._win(); return
+        self._enemy_turn()
+
+    def _act(self):
+        if self.over:
+            self.reset(); return
+        if self.battle.dodging:
+            return
+        self.status.setText("* Ты пытаешься поговорить. yeban не слушает. 🗿")
+        self._enemy_turn()
+
+    def _mercy(self):
+        if self.over:
+            self.reset(); return
+        if self.battle.dodging:
+            return
+        self.status.setText("* Ты щадишь. Но yeban не щадит. ИБО НЕХУЙ. 😈")
+        self._enemy_turn()
+
+    def _enemy_turn(self):
+        self._set_buttons(False)
+        self.status.setText(f"* yeban АТАКУЕТ на {self.ENEMY_DMG}! Уворачивайся! 🔥")
+        self.battle.start_dodge(85)
+
+    def _enemy_landed(self):
+        self.player_hp -= self.ENEMY_DMG
+        self._refresh()
+        if self.player_hp <= 0:
+            self._lose()
+        else:
+            self.status.setText("* Задело! Но ты ещё жив (как?).")
+            self._set_buttons(True)
+
+    def _enemy_turn_done(self):
+        if self.over:
+            return
+        self.status.setText("* Увернулся! Твой ход.")
+        self._set_buttons(True)
+
+    def _win(self):
+        self.over = True
+        self.status.setText("* YEBAN ПОВЕРЖЕН! 🎉  (FIGHT — заново)")
+        self._set_buttons(True)
+        try:
+            self.mw.add_cash(67, "⚔️ Победа над yeban")
+            self.mw.zoomer_burst("⚔️ YEBAN DEFEATED 🎉")
+        except Exception:
+            pass
+
+    def _lose(self):
+        self.over = True
+        self.status.setText("* YOU DIED 💀  (FIGHT — заново)")
+        self._set_buttons(True)
+
+
 class SoulAgreementDialog(QDialog):
     """Шуточное «AI-соглашение» при первом запуске.
 
@@ -8468,6 +8711,11 @@ class MainWindow(QMainWindow):
         gta6_action.triggered.connect(self.open_gta6)
         br_menu.addAction(gta6_action)
 
+        undertale_action = QAction("⚔️ Undertale (бой против yeban)", self)
+        undertale_action.setStatusTip("yeban: 67 HP, ты бьёшь по 1, он хуярит на 99")
+        undertale_action.triggered.connect(self.open_undertale)
+        br_menu.addAction(undertale_action)
+
         plus_action = QAction("💎 EBLAN++++++ (подписка, 20 тарифов)", self)
         plus_action.setStatusTip("20 уровней подписки от FREE до ALLAH")
         plus_action.triggered.connect(self.open_plus)
@@ -9111,6 +9359,9 @@ class MainWindow(QMainWindow):
 
     def open_gta6(self):
         Gta6Dialog(self).exec()
+
+    def open_undertale(self):
+        UndertaleDialog(self).exec()
 
     def open_dolboeb_panel(self):
         DolboebPanel(self).exec()
@@ -10648,6 +10899,8 @@ class MainWindow(QMainWindow):
             self.open_plus()
         elif cmd == "console":
             self.open_eblan_console()
+        elif cmd == "undertale":
+            self.open_undertale()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
