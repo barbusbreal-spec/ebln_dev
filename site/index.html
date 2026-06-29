@@ -123,6 +123,90 @@
   .cmd-copy:hover{background:rgba(204,255,0,0.07);}
 
   @media (max-width:600px){.nav-right .tag{display:none;}.dl-btn{font-size:1.5rem;}}
+
+  /* ============================================================
+     ПИЗДЕЦ 67 — оверрайды, чтоб глаза вытекли (но всё ещё читаемо)
+     ============================================================ */
+
+  /* живой фон: дрейфующие неоновые пятна */
+  body{
+    background:
+      radial-gradient(ellipse 50% 40% at 15% 20%, rgba(0,255,136,0.10), transparent 60%),
+      radial-gradient(ellipse 45% 45% at 85% 15%, rgba(204,255,0,0.08), transparent 60%),
+      radial-gradient(ellipse 55% 50% at 80% 85%, rgba(255,0,128,0.07), transparent 60%),
+      radial-gradient(ellipse 50% 50% at 20% 90%, rgba(0,200,255,0.07), transparent 60%),
+      var(--darker);
+    background-size:200% 200%,200% 200%,200% 200%,200% 200%,auto;
+    animation:bgDrift 18s ease-in-out infinite alternate;
+  }
+  @keyframes bgDrift{0%{background-position:0% 0%,100% 0%,100% 100%,0% 100%,0 0;}
+                     100%{background-position:100% 100%,0% 100%,0% 0%,100% 0%,0 0;}}
+
+  /* CRT-мерцание поверх всего (мягкое, не строб) */
+  html::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9997;
+    background:radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.45) 100%);
+    animation:crtFlicker 5s ease-in-out infinite;}
+  @keyframes crtFlicker{0%,100%{opacity:0.85;}48%{opacity:1;}50%{opacity:0.7;}52%{opacity:0.95;}}
+
+  /* лого — неоновый дёрг + RGB */
+  .logo{animation:logoPulse 2.8s ease-in-out infinite, neonFlick 3.7s infinite;}
+  @keyframes neonFlick{0%,19%,21%,55%,57%,100%{opacity:1;}20%,56%{opacity:0.55;}}
+
+  /* бейдж трясётся */
+  .hero-badge{animation:blinkTag 1.8s step-end infinite, shake 0.5s ease-in-out infinite;}
+  @keyframes shake{0%,100%{transform:translate(0,0);}25%{transform:translate(-2px,1px);}
+                   50%{transform:translate(2px,-1px);}75%{transform:translate(-1px,-1px);}}
+
+  /* заголовок — жёсткий RGB-глитч постоянно */
+  .hero-title .line2, .hero-67{animation:rgbGlitch 1.6s infinite steps(60);}
+  @keyframes rgbGlitch{
+    0%,100%{text-shadow:0 0 40px rgba(0,255,136,0.7),3px 0 0 #ff0066,-3px 0 0 #00e5ff;}
+    25%{text-shadow:0 0 50px rgba(204,255,0,0.7),-4px 0 0 #ff0066,4px 0 0 #00e5ff;transform:translate(2px,0);}
+    50%{text-shadow:0 0 40px rgba(0,255,136,0.9),3px 0 0 #00e5ff,-3px 0 0 #ff0066;}
+    75%{text-shadow:0 0 60px rgba(255,0,128,0.6),-2px 1px 0 #ccff00,2px -1px 0 #00e5ff;transform:translate(-2px,0);}
+  }
+
+  /* радужные дёргающиеся бордеры у карточек/кнопок ОС/чейнджлога */
+  .version-card,.os-btn,.cl-item,.os-modal,.cmd-box{
+    animation:neonBorder 4s linear infinite;
+  }
+  @keyframes neonBorder{
+    0%{border-color:#00ff88;box-shadow:0 0 22px rgba(0,255,136,0.25);}
+    25%{border-color:#ccff00;box-shadow:0 0 22px rgba(204,255,0,0.25);}
+    50%{border-color:#ff0080;box-shadow:0 0 22px rgba(255,0,128,0.25);}
+    75%{border-color:#00e5ff;box-shadow:0 0 22px rgba(0,229,255,0.25);}
+    100%{border-color:#00ff88;box-shadow:0 0 22px rgba(0,255,136,0.25);}
+  }
+
+  /* кнопка скачивания — радужный перелив + пульс */
+  .dl-btn{
+    background:linear-gradient(90deg,#00ff88,#ccff00,#ff0080,#00e5ff,#00ff88)!important;
+    background-size:300% 100%!important;color:#000!important;
+    animation:rainbowSlide 3s linear infinite, btnPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes rainbowSlide{from{background-position:0% 0;}to{background-position:300% 0;}}
+  @keyframes btnPulse{0%,100%{box-shadow:0 0 30px rgba(0,255,136,0.5);transform:scale(1);}
+                      50%{box-shadow:0 0 60px rgba(255,0,128,0.6);transform:scale(1.015);}}
+
+  /* чейнджлог — карточки оживают на ховере */
+  .cl-item{transition:transform .15s, background .18s;}
+  .cl-item:hover{transform:scale(1.06) rotate(-1deg);z-index:2;}
+  .cl-item:nth-child(even):hover{transform:scale(1.06) rotate(1deg);}
+  .cl-item .nm{animation:nmHue 6s linear infinite;}
+  @keyframes nmHue{0%{filter:hue-rotate(0);}100%{filter:hue-rotate(360deg);}}
+
+  /* версия 6.7 на карточке — дышит */
+  .card-version-id{animation:verBreath 2.2s ease-in-out infinite;}
+  @keyframes verBreath{0%,100%{transform:scale(1);text-shadow:0 0 24px rgba(0,255,136,0.6);}
+                       50%{transform:scale(1.05);text-shadow:0 0 50px rgba(0,255,136,1),0 0 90px rgba(204,255,0,0.4);}}
+
+  /* бегущая строка — быстрее и с переливом цвета фона */
+  .status-bar{animation:statusHue 8s linear infinite;}
+  @keyframes statusHue{0%{background:#00ff88;}33%{background:#ccff00;}66%{background:#ff0080;}100%{background:#00ff88;}}
+  .status-scroll{animation:scrollLeft 11s linear infinite;}
+
+  /* офсайт-кнопка тоже переливается */
+  .site-link{animation:neonBorder 4s linear infinite;}
 </style>
 </head>
 <body>
