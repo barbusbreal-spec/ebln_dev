@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EBLAN BROWSER 6.7 — ПИЗДЕЦ ЭДИШН</title>
+
+<!-- SEO -->
+<meta name="description" content="EBLAN BROWSER 6.7 — обновление ПИЗДЕЦ ЭДИШН. Магазин, Еблан Кеш, режим вайбкода, GTA VI, Undertale, консоль управления, анти-слежка. Скачай на Windows, Linux или macOS.">
+<meta name="keywords" content="eblan browser, браузер, 6.7, халяль, vpn, приватность, скачать браузер, linux, windows, macos">
+<meta name="author" content="EBLAN BROWSER">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://eblanbrowser.ru/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://eblanbrowser.ru/">
+<meta property="og:title" content="EBLAN BROWSER 6.7 — ПИЗДЕЦ ЭДИШН">
+<meta property="og:description" content="Обновление 6.7. Халяль снаружи — передоз внутри. Магазин, вайбкод, консоль управления, анти-слежка.">
+<meta property="og:image" content="https://eblanbrowser.ru/og-image.png">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="EBLAN BROWSER">
+
+<meta name="theme-color" content="#00ff88">
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&family=Teko:wght@300;400;600;700&family=Russo+One&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#00ff88; --acid:#ccff00; --dark:#080808; --darker:#030303;
+    --mid:#111; --white:#f0f0f0; --grey:#2a2a2a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--darker);color:var(--white);font-family:'Teko',sans-serif;overflow-x:hidden;cursor:crosshair;}
+  body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px);pointer-events:none;z-index:9999;}
+
+  /* HEADER */
+  header{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+    padding:14px 30px;background:rgba(3,3,3,0.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(0,255,136,0.12);}
+  .logo{font-family:'Black Ops One',sans-serif;font-size:1.6rem;letter-spacing:0.07em;color:var(--green);
+    text-shadow:0 0 10px rgba(0,255,136,0.8),0 0 30px rgba(0,255,136,0.4);animation:logoPulse 2.8s ease-in-out infinite;}
+  @keyframes logoPulse{0%,100%{text-shadow:0 0 10px rgba(0,255,136,0.8),0 0 30px rgba(0,255,136,0.4);}50%{text-shadow:0 0 18px rgba(0,255,136,1),0 0 50px rgba(0,255,136,0.6);}}
+  .nav-right{display:flex;gap:10px;align-items:center;font-family:'Share Tech Mono',monospace;font-size:0.6rem;}
+  .tag{padding:5px 11px;border:1px solid var(--grey);color:#666;letter-spacing:0.15em;text-transform:uppercase;}
+  .tag.ver{border-color:var(--acid);color:var(--acid);background:rgba(204,255,0,0.06);}
+  /* нормальная кнопка на офсайт */
+  .site-link{font-family:'Share Tech Mono',monospace;font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;
+    text-decoration:none;color:#000;background:var(--green);padding:7px 14px;border:1px solid var(--green);transition:all .15s;}
+  .site-link:hover{background:#00ffaa;box-shadow:0 0 18px rgba(0,255,136,0.5);}
+
+  /* HERO */
+  .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;padding:120px 20px 60px;text-align:center;overflow:hidden;}
+  .hero-bg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(0,255,136,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.035) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 75% 75% at 50% 50%,black,transparent);}
+  .hero-glow{position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(0,255,136,0.07) 0%,transparent 68%);animation:glowPulse 4s ease-in-out infinite;pointer-events:none;}
+  @keyframes glowPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.15);opacity:0.7;}}
+  .hero-badge{font-family:'Share Tech Mono',monospace;font-size:0.62rem;letter-spacing:0.4em;color:var(--acid);text-transform:uppercase;margin-bottom:18px;position:relative;animation:blinkTag 1.8s step-end infinite;}
+  @keyframes blinkTag{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  .hero-title{font-family:'Black Ops One',sans-serif;font-size:clamp(4rem,15vw,12rem);line-height:0.9;position:relative;}
+  .hero-title .line1{display:block;color:var(--white);text-shadow:2px 2px 0 #000;}
+  .hero-title .line2{display:block;color:var(--green);text-shadow:0 0 40px rgba(0,255,136,0.7),0 0 80px rgba(0,255,136,0.3);}
+  .hero-67{display:block;font-family:'Black Ops One',sans-serif;font-size:0.5em;color:var(--acid);letter-spacing:0.1em;text-shadow:0 0 30px rgba(204,255,0,0.6);margin-top:6px;}
+  .hero-sub{margin-top:22px;font-size:1.35rem;font-weight:300;color:#777;letter-spacing:0.08em;max-width:460px;line-height:1.4;}
+  .hero-sub strong{color:var(--green);font-weight:600;}
+
+  /* DOWNLOAD — одна версия 6.7 */
+  .download-section{padding:60px 20px 80px;display:flex;flex-direction:column;align-items:center;gap:32px;}
+  .download-label{font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:0.45em;color:#383838;text-transform:uppercase;}
+  .version-card{position:relative;border:1px solid var(--green);padding:30px 26px;background:rgba(0,255,136,0.05);width:100%;max-width:560px;
+    box-shadow:0 0 30px rgba(0,255,136,0.12),inset 0 0 28px rgba(0,255,136,0.02);text-align:center;}
+  .card-version-id{font-family:'Black Ops One',sans-serif;font-size:5rem;line-height:1;color:var(--green);text-shadow:0 0 24px rgba(0,255,136,0.6);}
+  .card-name{font-family:'Russo One',sans-serif;font-size:1.1rem;letter-spacing:0.08em;margin-top:6px;color:var(--white);}
+  .card-desc{font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#5a5a5a;margin-top:10px;line-height:1.6;}
+  .card-recommend{display:inline-block;margin-top:14px;font-family:'Share Tech Mono',monospace;font-size:0.55rem;letter-spacing:0.18em;text-transform:uppercase;padding:4px 10px;background:var(--green);color:#000;font-weight:700;}
+  .dl-btn-wrap{width:100%;max-width:560px;}
+  .dl-btn{width:100%;padding:20px 40px;font-family:'Black Ops One',sans-serif;font-size:2rem;letter-spacing:0.16em;border:none;cursor:pointer;position:relative;overflow:hidden;transition:all 0.18s;display:flex;align-items:center;justify-content:center;gap:14px;background:var(--green);color:#000;box-shadow:0 0 40px rgba(0,255,136,0.35);}
+  .dl-btn:hover{background:#00ffaa;box-shadow:0 0 60px rgba(0,255,136,0.65);transform:translateY(-3px);}
+  .dl-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(108deg,transparent 38%,rgba(255,255,255,0.18) 50%,transparent 62%);transform:translateX(-100%);transition:transform 0.45s;}
+  .dl-btn:hover::after{transform:translateX(100%);}
+  .dl-icon{font-size:1.4rem;}
+
+  /* CHANGELOG */
+  .changelog{max-width:900px;margin:0 auto;padding:50px 20px 80px;}
+  .cl-title{font-family:'Black Ops One',sans-serif;font-size:clamp(2rem,6vw,3.4rem);text-align:center;color:var(--white);margin-bottom:6px;}
+  .cl-title b{color:var(--acid);}
+  .cl-sub{font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:0.4em;color:#383838;text-transform:uppercase;text-align:center;margin-bottom:40px;}
+  .cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1px;background:var(--grey);border:1px solid var(--grey);}
+  .cl-item{background:var(--darker);padding:18px 18px;transition:background 0.18s;}
+  .cl-item:hover{background:rgba(0,255,136,0.03);}
+  .cl-item .ic{font-size:1.2rem;}
+  .cl-item .nm{font-family:'Russo One',sans-serif;font-size:0.85rem;color:var(--green);margin:6px 0 4px;letter-spacing:0.04em;}
+  .cl-item .ds{font-family:'Share Tech Mono',monospace;font-size:0.64rem;color:#5a5a5a;line-height:1.5;}
+
+  /* STATUS BAR */
+  .status-bar{position:fixed;bottom:0;left:0;right:0;height:26px;background:var(--green);display:flex;align-items:center;overflow:hidden;z-index:100;}
+  .status-scroll{display:flex;white-space:nowrap;animation:scrollLeft 18s linear infinite;font-family:'Share Tech Mono',monospace;font-size:0.58rem;font-weight:700;letter-spacing:0.18em;color:#000;}
+  .status-scroll span{padding:0 36px;}
+  @keyframes scrollLeft{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:46px;left:50%;transform:translateX(-50%) translateY(18px);background:var(--mid);border:1px solid var(--green);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:0.72rem;letter-spacing:0.12em;padding:11px 22px;opacity:0;transition:all 0.28s;z-index:200;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* OS MODAL */
+  .os-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.88);backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.22s;}
+  .os-overlay.open{opacity:1;pointer-events:all;}
+  .os-modal{background:#0d0d0d;border:1px solid rgba(0,255,136,0.22);box-shadow:0 0 60px rgba(0,255,136,0.08);padding:34px 30px 26px;width:100%;max-width:430px;position:relative;transform:translateY(18px) scale(0.97);transition:transform 0.22s;}
+  .os-overlay.open .os-modal{transform:translateY(0) scale(1);}
+  .os-modal-label{font-family:'Share Tech Mono',monospace;font-size:0.56rem;letter-spacing:0.45em;color:var(--green);text-transform:uppercase;margin-bottom:6px;}
+  .os-modal-q{font-family:'Black Ops One',sans-serif;font-size:1.8rem;letter-spacing:0.05em;color:var(--white);margin-bottom:22px;line-height:1.1;}
+  .os-btns{display:flex;flex-direction:column;gap:11px;}
+  .os-btn{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--grey);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.18s;color:var(--white);text-align:left;width:100%;}
+  .os-btn:hover{border-color:var(--green);background:rgba(0,255,136,0.055);transform:translateX(4px);}
+  .os-btn-icon{font-size:1.6rem;flex-shrink:0;}
+  .os-btn-name{font-family:'Russo One',sans-serif;font-size:0.95rem;letter-spacing:0.08em;}
+  .os-btn-hint{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:#555;letter-spacing:0.1em;margin-top:3px;}
+  .os-btn-linux:hover{border-color:var(--acid);background:rgba(204,255,0,0.04);}
+  .os-btn-linux:hover .os-btn-name{color:var(--acid);}
+  .os-btn-mac:hover{border-color:#aaa;}
+  .os-close{position:absolute;top:14px;right:16px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#444;cursor:pointer;background:none;border:none;}
+  .os-close:hover{color:var(--white);}
+  .cmd-wrap{margin-top:14px;display:none;}
+  .cmd-wrap.visible{display:block;}
+  .cmd-box{background:#070707;border:1px solid rgba(204,255,0,0.22);padding:13px 15px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--acid);line-height:1.65;word-break:break-all;}
+  .cmd-box::before{content:'$ ';color:rgba(204,255,0,0.4);}
+  .cmd-copy{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid rgba(204,255,0,0.25);color:var(--acid);font-family:'Share Tech Mono',monospace;font-size:0.56rem;letter-spacing:0.22em;padding:9px;cursor:pointer;text-transform:uppercase;}
+  .cmd-copy:hover{background:rgba(204,255,0,0.07);}
+
+  @media (max-width:600px){.nav-right .tag{display:none;}.dl-btn{font-size:1.5rem;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">EBLAN//</div>
+  <div class="nav-right">
+    <div class="tag ver">v6.7 · ПИЗДЕЦ</div>
+    <a class="site-link" href="https://eblanbrowser.ru/">ОФ. САЙТ ↗</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-bg-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-badge">// ОБНОВЛЕНИЕ 6.7 — ПИЗДЕЦ ЭДИШН //</div>
+  <h1 class="hero-title">
+    <span class="line1">EB</span>
+    <span class="line2">LAN</span>
+    <span class="hero-67">6.7</span>
+  </h1>
+  <p class="hero-sub">
+    Браузер для тех кто в теме.<br>
+    <strong>Халяль</strong> снаружи — <strong>передоз 67</strong> внутри.
+  </p>
+</section>
+
+<section class="download-section">
+  <div class="download-label">// версия одна — 6.7 //</div>
+  <div class="version-card">
+    <div class="card-version-id">6.7</div>
+    <div class="card-name">EBLAN BROWSER — ПИЗДЕЦ ЭДИШН</div>
+    <div class="card-desc">Единственная актуальная версия. Магазин, Еблан Кеш, вайбкод, консоль управления,<br>анти-слежка, GTA VI, Undertale и тонна дичи.</div>
+    <div class="card-recommend">Windows 10+, Linux, macOS 12+</div>
+  </div>
+  <div class="dl-btn-wrap">
+    <button class="dl-btn" id="dlBtn" onclick="openOsModal()">
+      <span class="dl-icon">☝️</span><span>СКОЧАТ EBLAN 6.7</span><span class="dl-icon">☝️</span>
+    </button>
+  </div>
+  <a class="site-link" href="https://eblanbrowser.ru/" style="font-size:0.7rem;padding:10px 20px;">Открыть eblanbrowser.ru ↗</a>
+</section>
+
+<section class="changelog">
+  <div class="cl-title">ЧЕЙНДЖЛОГ <b>6.7</b></div>
+  <div class="cl-sub">// что завезли в ПИЗДЕЦ ЭДИШН //</div>
+  <div class="cl-grid" id="clGrid"></div>
+</section>
+
+<div class="status-bar">
+  <div class="status-scroll">
+    <span>EBLAN BROWSER 6.7 — ПИЗДЕЦ ЭДИШН ✅ /// ТОЛЬКО ХАЛЯЛЬ. ТОЛЬКО ПЕРЕДОЗ /// 6️⃣7️⃣ /// СКАЧАЙ. ЗАПУСТИ. УДАЛИ НАХУЙ /// никакой рекламы (есть госреклама) ///</span>
+    <span>EBLAN BROWSER 6.7 — ПИЗДЕЦ ЭДИШН ✅ /// ТОЛЬКО ХАЛЯЛЬ. ТОЛЬКО ПЕРЕДОЗ /// 6️⃣7️⃣ /// СКАЧАЙ. ЗАПУСТИ. УДАЛИ НАХУЙ /// никакой рекламы (есть госреклама) ///</span>
+  </div>
+</div>
+
+<div class="os-overlay" id="osOverlay" onclick="handleOverlayClick(event)">
+  <div class="os-modal">
+    <button class="os-close" onclick="closeOsModal()">[ ESC ]</button>
+    <div class="os-modal-label">// Windows, Linux, macOS //</div>
+    <div class="os-modal-q">Какая у тебя система?</div>
+    <div class="os-btns">
+      <button class="os-btn" onclick="pickWindows()">
+        <span class="os-btn-icon">🪟</span>
+        <div><div class="os-btn-name">WINDOWS</div><div class="os-btn-hint">Установщик / zip</div></div>
+      </button>
+      <button class="os-btn os-btn-linux" onclick="pickLinux()">
+        <span class="os-btn-icon">🐧</span>
+        <div><div class="os-btn-name">LINUX</div><div class="os-btn-hint">Авто через InstallEblan</div></div>
+      </button>
+      <button class="os-btn os-btn-mac" onclick="pickMac()">
+        <span class="os-btn-icon">🍎</span>
+        <div><div class="os-btn-name">MACOS</div><div class="os-btn-hint">Авто через InstallEblan (нужен brew)</div></div>
+      </button>
+    </div>
+    <div class="cmd-wrap" id="cmdWrap">
+      <div class="cmd-box" id="cmdText"></div>
+      <button class="cmd-copy" onclick="copyCmd()">Скопировать</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Единственная версия — 6.7. Никаких R/S.
+  const WIN_URL = "https://update.riba.click/eb/r/lastest.zip";
+  const INSTALL_SH = "https://eblanbrowser.ru/sh/installeblan.sh";
+
+  function openOsModal(){
+    document.getElementById('osOverlay').classList.add('open');
+    document.getElementById('cmdWrap').classList.remove('visible');
+  }
+  function closeOsModal(){ document.getElementById('osOverlay').classList.remove('open'); }
+  function handleOverlayClick(e){ if(e.target===document.getElementById('osOverlay')) closeOsModal(); }
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeOsModal(); });
+
+  function pickWindows(){
+    closeOsModal();
+    showToast('🪟 EBLAN 6.7 — ЗАГРУЖАЕМ...');
+    const a=document.createElement('a');
+    a.href=WIN_URL; a.download='eblan-6.7.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  function pickLinux(){
+    const w=document.getElementById('cmdWrap');
+    document.getElementById('cmdText').textContent='curl -sSL '+INSTALL_SH+' | sudo bash';
+    w.classList.add('visible');
+  }
+  function pickMac(){
+    const w=document.getElementById('cmdWrap');
+    document.getElementById('cmdText').textContent='curl -sSL '+INSTALL_SH+' | bash';
+    w.classList.add('visible');
+  }
+  function copyCmd(){
+    const cmd=document.getElementById('cmdText').textContent;
+    navigator.clipboard.writeText(cmd).then(()=>showToast('КОМАНДА СКОПИРОВАНА — В ТЕРМИНАЛ')).catch(()=>showToast('⚠️ СКОПИРУЙ ВРУЧНУЮ'));
+  }
+  function showToast(msg){
+    const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),3200);
+  }
+
+  // ЧЕЙНДЖЛОГ 6.7
+  const CHANGELOG=[
+    ["🛒","Магазин + Еблан Кеш","Валюта, за вход −199, фичи покупаются"],
+    ["🤙","Меню 67","Six-Seven, читы, keygen, калькулятор 148679"],
+    ["💥","ПИЗДЕЦ-режим","Хаос, матрица, фейк-BSOD, jumpscare"],
+    ["⚡","Дикий режим","Мигание+вращение (за предупреждением об эпилепсии)"],
+    ["🐐","Фото-оверлей","Картинка на весь интерфейс, вращается"],
+    ["⬛","Режим страдания","Чёрный квадрат навсегда (67 кликов — выход)"],
+    ["🦯","Режим слепого","Убирает весь интерфейс, ESC — выход"],
+    ["📢","Госреклама","МАКС / VPN убивает / Яндекс / ВК / контракт. Не отключить"],
+    ["🕵️","Режим иноагента","Открывает .com/.org/.net (⚠️ посадят)"],
+    ["⚡","EblanBoost™","«Ускорение ×1488» (по факту реально тормозит)"],
+    ["🤖","Режим вайбкода","ИИ-агент EblanCoder + терминал"],
+    ["🎮","Steam 2","Крутые игры (eblansoft.ru/steam2)"],
+    ["🚗","GTA VI","Рабочая, без багов (мини-игра)"],
+    ["⚔️","Undertale: yeban","67 HP, ты бьёшь по 1, он хуярит на 99"],
+    ["🎲","DEP","Виртуальное казино + OAuth вход"],
+    ["🏢","Консоль управления","http://eblan — корпоративное управление"],
+    ["🎨","Серьёзный UI","Chrome-style тёмная тема + своя стартовая"],
+    ["🔖","Закладки","ВКонтакте и МАКС из коробки"],
+    ["↕️","Вертикальные вкладки","Сбоку, как у больших"],
+    ["📥","Импорт","Закладки из Chrome/Edge/Yandex/Firefox"],
+    ["🔗","Поделиться + 🌐 Переводчик","Шаринг и перевод через ИИ"],
+    ["🛡️","Анти-слежка","Заблокировано 6767 трекеров + вырезка медиа"],
+    ["💎","EBLAN++++++","20 тарифов подписки (FREE → ALLAH)"],
+    ["🍪","Сохранение кук","Куки и кеш переживают перезапуск"],
+    ["🪟","Установщик Windows","Молодёжный инсталлер 67"],
+    ["📜","AI-соглашение","При первом запуске (продай душу 🗿)"],
+  ];
+  const g=document.getElementById('clGrid');
+  CHANGELOG.forEach(([ic,nm,ds])=>{
+    const d=document.createElement('div'); d.className='cl-item';
+    d.innerHTML=`<div class="ic">${ic}</div><div class="nm">${nm}</div><div class="ds">${ds}</div>`;
+    g.appendChild(d);
+  });
+</script>
+</body>
+</html>
