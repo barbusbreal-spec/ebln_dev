@@ -207,6 +207,20 @@
 
   /* офсайт-кнопка тоже переливается */
   .site-link{animation:neonBorder 4s linear infinite;}
+
+  /* ===== ТРОЛЛФЕЙСЫ 67 (плавные джампскейры, без строба) ===== */
+  .troll{position:fixed;z-index:9996;pointer-events:none;font-size:clamp(70px,12vw,150px);
+    opacity:0;transform:scale(0.3) rotate(-10deg);
+    transition:transform .28s cubic-bezier(.34,1.7,.5,1), opacity .28s;
+    filter:drop-shadow(0 0 18px rgba(0,255,136,.7));text-align:center;line-height:0.9;}
+  .troll.show{opacity:1;transform:scale(1) rotate(0);}
+  .troll small{display:block;font-family:'Black Ops One',sans-serif;font-size:.28em;color:#ccff00;
+    text-shadow:0 0 12px rgba(204,255,0,.7);letter-spacing:.08em;}
+  /* плавающие 67 в фоне */
+  .floaty67{position:fixed;z-index:1;pointer-events:none;font-family:'Black Ops One',sans-serif;
+    color:rgba(0,255,136,0.07);font-size:clamp(40px,8vw,120px);
+    animation:floatUp linear infinite;}
+  @keyframes floatUp{from{transform:translateY(110vh) rotate(0);}to{transform:translateY(-30vh) rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -365,6 +379,33 @@
     d.innerHTML=`<div class="ic">${ic}</div><div class="nm">${nm}</div><div class="ds">${ds}</div>`;
     g.appendChild(d);
   });
+
+  /* ===== ТРОЛЛФЕЙС-ДЖАМПСКЕЙРЫ 67 (безопасно: плавно, раз в пару секунд) ===== */
+  const TROLLS=["🗿","😏","🤣","🤙","💀","🐐","😈"];
+  const CAPS=["67","6️⃣7️⃣","ПОПАЛСЯ","за стулом 🗿","сигма 67","ТРОЛЛ","skill issue"];
+  function spawnTroll(){
+    const el=document.createElement('div'); el.className='troll';
+    el.innerHTML=TROLLS[Math.random()*TROLLS.length|0]+
+      `<small>${CAPS[Math.random()*CAPS.length|0]}</small>`;
+    const x=Math.random()*80+5, y=Math.random()*70+10;
+    el.style.left=x+'vw'; el.style.top=y+'vh';
+    document.body.appendChild(el);
+    requestAnimationFrame(()=>el.classList.add('show'));
+    setTimeout(()=>el.classList.remove('show'),650);
+    setTimeout(()=>el.remove(),1000);
+    // следующий — через случайный интервал (не строб)
+    setTimeout(spawnTroll, 1600+Math.random()*2600);
+  }
+  setTimeout(spawnTroll, 1500);
+
+  // плавающие 67 в фоне
+  for(let i=0;i<7;i++){
+    const f=document.createElement('div'); f.className='floaty67'; f.textContent='67';
+    f.style.left=(Math.random()*92)+'vw';
+    f.style.animationDuration=(11+Math.random()*12)+'s';
+    f.style.animationDelay=(-Math.random()*15)+'s';
+    document.body.appendChild(f);
+  }
 </script>
 </body>
 </html>
