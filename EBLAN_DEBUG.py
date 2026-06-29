@@ -33,11 +33,21 @@ if getattr(sys, "frozen", False):
 else:
     _APP_BASE = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR = os.path.join(_APP_BASE, "images")
+PAGES_DIR = os.path.join(_APP_BASE, "pages")
 
 
 def img(name):
     """Абсолютный путь к картинке в images/."""
     return os.path.join(IMAGES_DIR, name)
+
+
+def load_local_page_html(name):
+    """Читает HTML-страницу из pages/ (абсолютный путь). '' если нет."""
+    try:
+        with open(os.path.join(PAGES_DIR, name), "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
 
 
 # DEP ID — зарегистрированное OAuth-приложение EBLAN (вшитые креды).
@@ -6686,6 +6696,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
 
     tiles = "".join([
         tile("eblan:shop", "🛒", "Магазин", "функции за Еблан Кеш"),
+        tile("eblan:plus", "💎", "EBLAN++++++", "20 тарифов подписки"),
         tile("eblan:steam2", "🎮", "Steam 2", "крутые игры"),
         tile("eblan:gta6", "🚗", "GTA VI", "рабочая, без багов"),
         tile("eblan:vibecode", "🤖", "Вайбкод", "ИИ-агент + терминал"),
@@ -8281,6 +8292,11 @@ class MainWindow(QMainWindow):
         gta6_action.triggered.connect(self.open_gta6)
         br_menu.addAction(gta6_action)
 
+        plus_action = QAction("💎 EBLAN++++++ (подписка, 20 тарифов)", self)
+        plus_action.setStatusTip("20 уровней подписки от FREE до ALLAH")
+        plus_action.triggered.connect(self.open_plus)
+        br_menu.addAction(plus_action)
+
         vibe_action = QAction("🤖 Режим вайбкода (ИИ-агент + терминал)", self)
         vibe_action.setStatusTip("ИИ-агент для вайбкода с терминалом")
         vibe_action.triggered.connect(self.open_vibecode)
@@ -8891,6 +8907,20 @@ class MainWindow(QMainWindow):
     def open_steam2(self):
         """Steam 2 с крутыми играми (по факту — наш сайт)."""
         self.add_new_tab(QUrl("https://eblansoft.ru/steam2"), "🎮 Steam 2")
+
+    def open_plus(self):
+        """Страница подписки EBLAN++++++ (20 тарифов) — локальная HTML."""
+        html = load_local_page_html("plus.html")
+        if not html:
+            QMessageBox.information(self, "Подписка", "Страница подписки не найдена (pages/plus.html).")
+            return
+        browser = QWebEngineView()
+        page = EblanPage(self.web_profile, browser, self)
+        browser.setPage(page)
+        i = self.tabs.addTab(browser, "💎 EBLAN++++++")
+        self.tabs.setCurrentIndex(i)
+        browser.loadFinished.connect(lambda ok, i=i, b=browser: self.on_tab_load_finished(i, b))
+        browser.setHtml(html, QUrl("https://eblan.plus/"))
 
     def open_vibecode(self):
         VibeCodeDialog(self).exec()
@@ -10320,6 +10350,8 @@ class MainWindow(QMainWindow):
             self.open_dep()
         elif cmd == "gta6":
             self.open_gta6()
+        elif cmd == "plus":
+            self.open_plus()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()

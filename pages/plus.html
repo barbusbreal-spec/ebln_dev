@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EBLAN++++++ — Подписка</title>
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&family=Russo+One&family=Teko:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --g: #00ff88;
+  --acid: #ccff00;
+  --red: #ff2244;
+  --gold: #ffd700;
+  --purple: #cc00ff;
+  --bg: #060606;
+  --card: #0a0a0a;
+  --grey: #1a1a1a;
+  --mono: 'Share Tech Mono', monospace;
+  --head: 'Black Ops One', sans-serif;
+  --russ: 'Russo One', sans-serif;
+  --teko: 'Teko', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: #fff;
+  font-family: var(--mono);
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* scanline overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+}
+
+/* ---- HERO ---- */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,255,136,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(204,255,0,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 80% 20%, rgba(204,0,255,0.04) 0%, transparent 60%);
+  animation: bgPulse 6s ease-in-out infinite alternate;
+}
+@keyframes bgPulse {
+  from { opacity: 0.7; }
+  to   { opacity: 1; }
+}
+
+.hero-grid {
+  position: absolute; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridScroll 20s linear infinite;
+}
+@keyframes gridScroll {
+  from { transform: translateY(0); }
+  to   { transform: translateY(40px); }
+}
+
+.hero-inner { position: relative; z-index: 1; }
+
+.hero-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.4em;
+  color: var(--g);
+  border: 1px solid rgba(0,255,136,0.3);
+  padding: 6px 18px;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+  animation: blink 2s step-end infinite;
+}
+@keyframes blink {
+  0%,100% { border-color: rgba(0,255,136,0.3); }
+  50%      { border-color: rgba(0,255,136,0.8); }
+}
+
+.hero-logo {
+  font-family: var(--head);
+  font-size: clamp(3rem, 12vw, 9rem);
+  letter-spacing: 0.05em;
+  line-height: 0.9;
+  color: var(--g);
+  text-shadow:
+    0 0 20px rgba(0,255,136,0.5),
+    0 0 60px rgba(0,255,136,0.2);
+  animation: logoGlow 3s ease-in-out infinite alternate;
+}
+@keyframes logoGlow {
+  from { text-shadow: 0 0 20px rgba(0,255,136,0.5), 0 0 60px rgba(0,255,136,0.2); }
+  to   { text-shadow: 0 0 40px rgba(0,255,136,0.9), 0 0 100px rgba(0,255,136,0.4), 0 0 200px rgba(0,255,136,0.1); }
+}
+
+.plus-chain {
+  font-family: var(--head);
+  font-size: clamp(2rem, 8vw, 6rem);
+  color: var(--acid);
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 30px rgba(204,255,0,0.6);
+  display: block;
+  margin-top: -10px;
+}
+
+.hero-sub {
+  margin-top: 28px;
+  font-family: var(--mono);
+  font-size: clamp(0.6rem, 2vw, 0.75rem);
+  letter-spacing: 0.2em;
+  color: #555;
+  text-transform: uppercase;
+  max-width: 500px;
+}
+
+.hero-features {
+  display: flex; gap: 24px; flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 36px;
+}
+.hf-item {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  color: #444;
+  display: flex; align-items: center; gap: 8px;
+}
+.hf-item::before { content: '✅'; font-size: 0.8rem; }
+
+.scroll-cta {
+  margin-top: 60px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.3em;
+  color: #333;
+  text-transform: uppercase;
+  animation: scrollBounce 2s ease-in-out infinite;
+}
+@keyframes scrollBounce {
+  0%,100% { transform: translateY(0); opacity: 0.4; }
+  50%      { transform: translateY(8px); opacity: 0.8; }
+}
+
+/* ---- SECTION HEADER ---- */
+.section {
+  padding: 60px 20px;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.45em;
+  color: var(--g);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-family: var(--head);
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: 0.05em;
+  line-height: 1;
+  margin-bottom: 48px;
+}
+
+/* ---- TIERS GRID ---- */
+.tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.tier-card {
+  background: var(--card);
+  border: 1px solid var(--grey);
+  padding: 22px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.22s;
+  cursor: pointer;
+}
+.tier-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent-color, var(--g));
+  box-shadow: 0 0 30px rgba(var(--accent-rgb, 0,255,136), 0.12);
+}
+.tier-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-color, var(--g));
+  box-shadow: 0 0 12px var(--accent-color, var(--g));
+}
+
+.tier-num {
+  position: absolute; top: 14px; right: 16px;
+  font-family: var(--teko);
+  font-size: 3rem;
+  color: rgba(255,255,255,0.04);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tier-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  display: block;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.tier-name {
+  font-family: var(--russ);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--accent-color, var(--g));
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.tier-price {
+  font-family: var(--teko);
+  font-size: 2.4rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.tier-period {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.15em;
+  color: #444;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.tier-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tier-features li {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  color: #555;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.tier-features li .fi {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tier-btn {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 11px;
+  background: transparent;
+  border: 1px solid var(--accent-color, var(--g));
+  color: var(--accent-color, var(--g));
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.tier-btn:hover {
+  background: var(--accent-color, var(--g));
+  color: #000;
+}
+
+/* special cards */
+.tier-card.hot {
+  border-color: var(--red);
+}
+.tier-card.hot::after {
+  content: '🔥 ХИТ';
+  position: absolute; top: 12px; right: 12px;
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--red);
+  background: rgba(255,34,68,0.1);
+  border: 1px solid rgba(255,34,68,0.3);
+  padding: 3px 8px;
+}
+
+.tier-card.legendary {
+  background: linear-gradient(135deg, #0a0a0a 0%, #0f0800 100%);
+  border-color: var(--gold);
+  animation: legendaryGlow 3s ease-in-out infinite alternate;
+}
+@keyframes legendaryGlow {
+  from { box-shadow: 0 0 20px rgba(255,215,0,0.1); }
+  to   { box-shadow: 0 0 60px rgba(255,215,0,0.25); }
+}
+
+/* ---- FAQ / TRASH SECTION ---- */
+.trash-section {
+  background: #080808;
+  border-top: 1px solid var(--grey);
+  border-bottom: 1px solid var(--grey);
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.trash-grid {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center;
+  max-width: 800px;
+  margin: 32px auto 0;
+}
+
+.trash-tag {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  padding: 8px 14px;
+  border: 1px solid #1e1e1e;
+  color: #3a3a3a;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  cursor: default;
+}
+.trash-tag:hover { border-color: var(--g); color: var(--g); }
+
+/* ---- FOOTER ---- */
+.footer {
+  text-align: center;
+  padding: 40px 20px;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.2em;
+  color: #222;
+  text-transform: uppercase;
+}
+
+/* ---- TOAST ---- */
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+  background: var(--g); color: #000;
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.15em;
+  padding: 14px 28px;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  z-index: 10000;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 600px) {
+  .tiers-grid { grid-template-columns: 1fr 1fr; }
+  .tier-price { font-size: 1.8rem; }
+}
+@media (max-width: 400px) {
+  .tiers-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-badge">// ПРЕМИУМ ПОДПИСКА //</div>
+    <div class="hero-logo">EBLAN</div>
+    <span class="plus-chain">++++++</span>
+    <p class="hero-sub">20 уровней. Неограниченный кринж. Один браузер чтобы всеми владеть.</p>
+    <div class="hero-features">
+      <span class="hf-item">ХАЛЯЛЬ РЕЖИМ</span>
+      <span class="hf-item">ВСТРОЕННЫЙ VPN</span>
+      <span class="hf-item">ПЕРЕДОЗ СКОРОСТИ</span>
+      <span class="hf-item">ПОДДЕРЖКА 24/0</span>
+    </div>
+    <div class="scroll-cta">▼ ВЫБЕРИ СВОЙ УРОВЕНЬ ▼</div>
+  </div>
+</section>
+
+<!-- TIERS -->
+<div class="section">
+  <div class="section-label">// тарифные планы //</div>
+  <div class="section-title">20 УРОВНЕЙ<br><span style="color:var(--acid)">ПОДПИСКИ</span></div>
+
+  <div class="tiers-grid" id="tiersGrid"></div>
+</div>
+
+<!-- TRASH FEATURES -->
+<div class="trash-section">
+  <div class="section-label" style="text-align:center">// всё что включено //</div>
+  <div class="section-title" style="font-size:clamp(1.8rem,5vw,3rem)">УЕБИЩНЫЕ ФУНКЦИИ 🤡</div>
+  <div class="trash-grid" id="trashGrid"></div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  © 2025 EBLAN BROWSER — ВСЕ ПРАВА ПРОКЛЯТЫ 💀 &nbsp;·&nbsp; eblanbrowser.ru
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TIERS = [
+  {
+    name: "EBLAN FREE",
+    icon: "🪲",
+    price: "0₽",
+    accent: "#333333", accentRgb: "51,51,51",
+    features: [
+      { i: "💀", t: "Браузер просто открывается" },
+      { i: "🪟", t: "Одна вкладка. Одна." },
+      { i: "🔇", t: "Звука нет. Не заслужил" },
+    ],
+    btn: "НАЧАТЬ СТРАДАТЬ"
+  },
+  {
+    name: "EBLAN BASIC",
+    icon: "🤡",
+    price: "49₽",
+    accent: "#00ff88", accentRgb: "0,255,136",
+    features: [
+      { i: "✅", t: "До 3 вкладок" },
+      { i: "🍪", t: "Удаление куков по пятницам" },
+      { i: "🔎", t: "Поиск (иногда работает)" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN NORMAL",
+    icon: "😐",
+    price: "99₽",
+    accent: "#00ccff", accentRgb: "0,204,255",
+    features: [
+      { i: "✅", t: "Неограниченные вкладки" },
+      { i: "🔇", t: "Блокировка рекламы (частично)" },
+      { i: "🧠", t: "ИИ который не умеет в математику" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN PLUS",
+    icon: "⚡",
+    price: "199₽",
+    accent: "#ccff00", accentRgb: "204,255,0",
+    hot: true,
+    features: [
+      { i: "⚡", t: "Турбо-режим (плацебо)" },
+      { i: "🌙", t: "Тёмная тема тёмнее чем ночь" },
+      { i: "🕵️", t: "Режим инкогнито с маской Гая Фокса" },
+      { i: "🔔", t: "Уведомления о том что ты сидишь слишком долго" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN PRO",
+    icon: "💼",
+    price: "349₽",
+    accent: "#ff9900", accentRgb: "255,153,0",
+    features: [
+      { i: "💼", t: "Режим работы (открывает Excel)" },
+      { i: "📊", t: "Статистика просмотра грустных сайтов" },
+      { i: "🧹", t: "Очистка истории взрывом" },
+      { i: "☕", t: "Встроенный таймер для перерывов" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN ULTRA",
+    icon: "🚀",
+    price: "599₽",
+    accent: "#ff2244", accentRgb: "255,34,68",
+    features: [
+      { i: "🚀", t: "Загрузка страниц быстрее скорости интернета" },
+      { i: "🛡️", t: "VPN в 3 странах (Антарктида в комплекте)" },
+      { i: "🤖", t: "Автозаполнение капчи (50% успех)" },
+      { i: "🎵", t: "Встроенный плеер с 1 песней" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN MEGA",
+    icon: "💥",
+    price: "999₽",
+    accent: "#ff44cc", accentRgb: "255,68,204",
+    features: [
+      { i: "💥", t: "Анимация взрыва при открытии" },
+      { i: "🦾", t: "ИИ-блокировка токсичных сайтов (все заблокированы)" },
+      { i: "🌍", t: "VPN в 47 странах" },
+      { i: "👁️", t: "Режим слежки за слежкой" },
+      { i: "🎮", t: "Встроенная игра 'Убей куку'" },
+    ],
+    btn: "ПОДПИСАТЬСЯ"
+  },
+  {
+    name: "EBLAN GIGA",
+    icon: "🌊",
+    price: "1499₽",
+    accent: "#00aaff", accentRgb: "0,170,255",
+    features: [
+      { i: "🌊", t: "Загружает сайты до нажатия кнопки" },
+      { i: "🧬", t: "ДНК-авторизация (только для людей)" },
+      { i: "🪄", t: "Магический режим (ничего не делает красиво)" },
+      { i: "📡", t: "Спутниковый DNS" },
+      { i: "🦷", t: "Дентальная версия интерфейса" },
+    ],
+    btn: "ХОЧУ"
+  },
+  {
+    name: "EBLAN TERA",
+    icon: "🔮",
+    price: "2499₽",
+    accent: "#aa44ff", accentRgb: "170,68,255",
+    features: [
+      { i: "🔮", t: "Предсказание следующего сайта" },
+      { i: "🌀", t: "Портал в параллельный интернет" },
+      { i: "🧿", t: "Защита от сглаза при вводе пароля" },
+      { i: "👻", t: "Режим призрака (никто не видит что смотришь)" },
+      { i: "🫀", t: "Пульсометр через вебкамеру" },
+    ],
+    btn: "ХОЧУ"
+  },
+  {
+    name: "EBLAN PETA",
+    icon: "☢️",
+    price: "3999₽",
+    accent: "#ffcc00", accentRgb: "255,204,0",
+    features: [
+      { i: "☢️", t: "Ядерный режим загрузки" },
+      { i: "🏛️", t: "Интерфейс в стиле Древнего Рима" },
+      { i: "🧊", t: "Крио-кэш (страницы замораживаются)" },
+      { i: "📻", t: "Встроенное радио из 1998 года" },
+      { i: "🛸", t: "НЛО-режим вкладок" },
+      { i: "🦑", t: "Осьминог-помощник" },
+    ],
+    btn: "ВЗЯТЬ"
+  },
+  {
+    name: "EBLAN ZEUS",
+    icon: "⚡🌩️",
+    price: "5999₽",
+    accent: "#ffdd00", accentRgb: "255,221,0",
+    hot: true,
+    features: [
+      { i: "⚡", t: "Молния вместо курсора" },
+      { i: "🌩️", t: "Гром при каждом клике" },
+      { i: "👁️", t: "Всевидящее ОКО в статус-баре" },
+      { i: "🏔️", t: "Режим Олимпа (облачный интерфейс)" },
+      { i: "🦅", t: "Орёл-маскот который критикует сайты" },
+      { i: "⚖️", t: "Справедливый блокировщик (блокирует несправедливые сайты)" },
+    ],
+    btn: "ВЗЯТЬ"
+  },
+  {
+    name: "EBLAN DRAGON",
+    icon: "🐉",
+    price: "9999₽",
+    accent: "#ff4400", accentRgb: "255,68,0",
+    features: [
+      { i: "🐉", t: "Дракон сжигает медленные сайты" },
+      { i: "🔥", t: "Огненная анимация загрузки" },
+      { i: "🪙", t: "Встроенный крипто-кошелёк (пустой)" },
+      { i: "🏰", t: "Замок для важных вкладок" },
+      { i: "💎", t: "Алмазная тема интерфейса" },
+      { i: "🗡️", t: "Режим воина (убивает баги визуально)" },
+    ],
+    btn: "ХОЧУ ДРАКОНА"
+  },
+  {
+    name: "EBLAN COSMIC",
+    icon: "🌌",
+    price: "14999₽",
+    accent: "#8844ff", accentRgb: "136,68,255",
+    features: [
+      { i: "🌌", t: "Тема 'Глубокий космос'" },
+      { i: "🪐", t: "Сатурн вместо иконки загрузки" },
+      { i: "🌠", t: "Метеоры в фоне при скролле" },
+      { i: "👨‍🚀", t: "Режим астронавта (всё в невесомости)" },
+      { i: "🔭", t: "Телескоп для маленьких текстов" },
+      { i: "🛰️", t: "Спутниковое обновление каждый час" },
+      { i: "☄️", t: "Комета-уведомления" },
+    ],
+    btn: "В КОСМОС"
+  },
+  {
+    name: "EBLAN PHARAOH",
+    icon: "🏺",
+    price: "19999₽",
+    accent: "#cc9900", accentRgb: "204,153,0",
+    features: [
+      { i: "🏺", t: "Египетская тема с иероглифами" },
+      { i: "🐈", t: "Кот-фараон в уголке экрана" },
+      { i: "📜", t: "История браузинга на папирусе" },
+      { i: "⚱️", t: "Кэш хранится в урне" },
+      { i: "🔐", t: "Шифрование уровня пирамиды" },
+      { i: "💀", t: "Проклятие медленным сайтам" },
+      { i: "☀️", t: "Режим Бога Солнца (яркость x1000)" },
+    ],
+    btn: "ДА, ФАРАОН"
+  },
+  {
+    name: "EBLAN SAMURAI",
+    icon: "⚔️",
+    price: "29999₽",
+    accent: "#cc0022", accentRgb: "204,0,34",
+    features: [
+      { i: "⚔️", t: "Меч вместо курсора" },
+      { i: "🎌", t: "Японский режим (всё задом наперёд)" },
+      { i: "🥷", t: "Невидимый режим ниндзя" },
+      { i: "🌸", t: "Сакура в фоне" },
+      { i: "🎎", t: "Анимешный помощник" },
+      { i: "🍜", t: "Уведомление 'Пора есть рамен'" },
+      { i: "🏯", t: "Замок Нидзё вместо домашней страницы" },
+      { i: "🎵", t: "Музыка из аниме при запуске" },
+    ],
+    btn: "БАНЗАЙ"
+  },
+  {
+    name: "EBLAN PHARMA",
+    icon: "💊",
+    price: "49999₽",
+    accent: "#00ffcc", accentRgb: "0,255,204",
+    features: [
+      { i: "💊", t: "Передоз скорости (реально быстро)" },
+      { i: "🧪", t: "Экспериментальные функции которые ломают всё" },
+      { i: "🩺", t: "Диагностика твоего браузинга" },
+      { i: "💉", t: "Инъекция CSS в любой сайт" },
+      { i: "🏥", t: "Скорая помощь при зависании" },
+      { i: "🧬", t: "Модификация ДНК сайтов" },
+      { i: "⚗️", t: "Лаборатория для экспериментов" },
+      { i: "🔬", t: "Микроскоп для пикселей" },
+    ],
+    btn: "ПЕРЕДОЗИРУЙТЕ МЕНЯ"
+  },
+  {
+    name: "EBLAN OVERLORD",
+    icon: "👹",
+    price: "99999₽",
+    accent: "#ff0055", accentRgb: "255,0,85",
+    features: [
+      { i: "👹", t: "Режим Повелителя (все сайты твои)" },
+      { i: "🌋", t: "Вулкан при ошибке 404" },
+      { i: "⛓️", t: "Блокировка ВСЕГО что ты не одобрил" },
+      { i: "🦂", t: "Скорпион-маскот" },
+      { i: "👑", t: "Корона в title-баре" },
+      { i: "🔱", t: "Трезубец вместо favicon" },
+      { i: "🌑", t: "Темнее чем тёмная тема" },
+      { i: "😈", t: "Режим хаоса (случайный интерфейс каждый раз)" },
+      { i: "💣", t: "Самоуничтожение куков врагов" },
+    ],
+    btn: "Я — ПОВЕЛИТЕЛЬ"
+  },
+  {
+    name: "EBLAN GOD",
+    icon: "✨👁️✨",
+    price: "299999₽",
+    accent: "#ffffff", accentRgb: "255,255,255",
+    features: [
+      { i: "✨", t: "Всё включено" },
+      { i: "🌈", t: "Все темы одновременно" },
+      { i: "🔱", t: "Управление интернетом (частично)" },
+      { i: "🪄", t: "Магия работает по-настоящему" },
+      { i: "🌍", t: "VPN во все страны включая несуществующие" },
+      { i: "🎯", t: "Точность клика 100%" },
+      { i: "🧿", t: "Защита от всего" },
+      { i: "💫", t: "Ты просто бог интернета" },
+      { i: "☎️", t: "Личный номер разработчика" },
+      { i: "🛐", t: "Тебе молятся другие подписчики" },
+    ],
+    btn: "Я — БОГ"
+  },
+  {
+    name: "EBLAN ALLAH",
+    icon: "🌙⭐💀",
+    price: "∞₽",
+    accent: "#ffd700", accentRgb: "255,215,0",
+    legendary: true,
+    features: [
+      { i: "🌙", t: "Халяль всё — абсолютно всё" },
+      { i: "⭐", t: "Золотой интерфейс" },
+      { i: "💀", t: "Смерть рекламе" },
+      { i: "🕌", t: "Интерфейс мечети" },
+      { i: "📿", t: "Чётки вместо индикатора загрузки" },
+      { i: "🌺", t: "Розовые уведомления о намазе" },
+      { i: "🦁", t: "Лев-хранитель паролей" },
+      { i: "✨", t: "Все функции всех уровней" },
+      { i: "🛸", t: "Доступ к засекреченному интернету" },
+      { i: "☎️", t: "Прямая линия с Аллахом (занято)" },
+      { i: "♾️", t: "Вечная подписка + загробный мир" },
+    ],
+    btn: "АЛЛА ХАКБАР 🌙"
+  },
+  {
+    name: "EBLAN CORPORATE",
+    icon: "💰🏢📈",
+    price: "666₽/чел",
+    accent: "#aaaaaa", accentRgb: "170,170,170",
+    features: [
+      { i: "🏢", t: "Для офиса 1-10000 человек" },
+      { i: "📊", t: "Дашборд начальника 'кто что смотрит'" },
+      { i: "🔒", t: "Блокировка YouTube (опционально)" },
+      { i: "📋", t: "Отчётность в Excel автоматически" },
+      { i: "☕", t: "Уведомление 'СТЕНД-АП ЧЕРЕЗ 5 МИНУТ'" },
+      { i: "💼", t: "Режим 'выгляди занятым'" },
+    ],
+    btn: "КУПИТЬ ДЛЯ ОФИСА"
+  },
+];
+
+const TRASH_FEATURES = [
+  "💾 Сохранение паролей на стикере", "🌡️ Термометр процессора в статус-баре",
+  "🐸 Пепе при ошибке 404", "📺 Встроенный телевизор",
+  "🧦 NFT носков в новой вкладке", "🕐 Часы которые всегда опаздывают на 2 минуты",
+  "🔊 Звук при каждом клике", "🌮 Кнопка 'Хочу есть'",
+  "😴 Детектор сна через вебкамеру", "🦴 Бросить кость (для собак)",
+  "🎲 Случайная вкладка", "📍 Геолокация с точностью до диванa",
+  "🧲 Магнитный скролл", "🌮 Переводчик меню ресторана",
+  "🦷 Напоминание почистить зубы", "🪴 Растение-тамагочи в углу",
+  "🎯 Прицел вместо курсора", "💤 Режим 'я не здесь'",
+  "📸 Селфи при входе на сайт", "🌭 Хот-дог-режим (всё вытянуто)",
+  "🐧 Пингвин-ассистент", "🔑 Ключ от интернета",
+  "🧻 Рулон туалетной бумаги в истории браузера", "🦆 Утка резиновая при баге",
+  "🌈 Радужный режим ЛГБТ (отключаемо)", "🎪 Цирковой режим",
+  "🥴 Пьяный скролл", "🌵 Кактус вместо спиннера загрузки",
+  "🤌 Итальянский режим (всё с жестами)", "🎠 Карусель закладок",
+];
+
+// Render tiers
+const grid = document.getElementById('tiersGrid');
+TIERS.forEach((t, i) => {
+  const card = document.createElement('div');
+  card.className = 'tier-card' + (t.hot ? ' hot' : '') + (t.legendary ? ' legendary' : '');
+  card.style.setProperty('--accent-color', t.accent);
+  card.style.setProperty('--accent-rgb', t.accentRgb);
+
+  card.innerHTML = `
+    <div class="tier-num">${String(i+1).padStart(2,'0')}</div>
+    <span class="tier-icon">${t.icon}</span>
+    <div class="tier-name">${t.name}</div>
+    <div class="tier-price">${t.price}</div>
+    <div class="tier-period">/ в месяц</div>
+    <ul class="tier-features">
+      ${t.features.map(f => `<li><span class="fi">${f.i}</span><span>${f.t}</span></li>`).join('')}
+    </ul>
+    <button class="tier-btn" onclick="handleBuy('${t.name}', '${t.price}')">${t.btn}</button>
+  `;
+  grid.appendChild(card);
+});
+
+// Render trash tags
+const trash = document.getElementById('trashGrid');
+TRASH_FEATURES.forEach(f => {
+  const el = document.createElement('div');
+  el.className = 'trash-tag';
+  el.textContent = f;
+  trash.appendChild(el);
+});
+
+// Toast
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function handleBuy(name, price) {
+  if (price === '∞₽') {
+    showToast('☪️ АЛЛА ХАКБАР — ОПЛАТА ПРИНЯТА');
+  } else if (price === '0₽') {
+    showToast('💀 ДОБРО ПОЖАЛОВАТЬ В АД БЕСПЛАТНОГО ПЛАНА');
+  } else {
+    showToast(`✅ ${name} — КУПЛЕНО (нет)`);
+  }
+}
+</script>
+</body>
+</html>
