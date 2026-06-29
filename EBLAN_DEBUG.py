@@ -40,6 +40,11 @@ def img(name):
     return os.path.join(IMAGES_DIR, name)
 
 
+# DEP ID — зарегистрированное OAuth-приложение EBLAN (вшитые креды).
+DEP_CLIENT_ID = "dep_ab3fcbce8ff2cb4b7aec8b1c"
+DEP_CLIENT_SECRET = "f972ec4889adaba304d3f7754d78f0b3dbc039010f81552305ccddfbce30205d"
+
+
 class FPSOverlay(QWidget):
     """Геймерский FPS-оверлей. Показывает всегда 1000+ FPS,
     при этом реально роняет производительность тяжёлыми вычислениями."""
@@ -1417,6 +1422,14 @@ AD_NAG_CONTENTS = [
                 "Заходи в ВК — мемы, музыка, госуслуги и слежка в одном месте.\n\n"
                 "Открыть ВК? Всё равно откроем. 🔵",
         "btn": "Иду в ВК (нет)",
+    },
+    {
+        "bg": "#3a4d1f",
+        "title": "🪖 ПОДПИШИ КОНТРАКТ",
+        "body": "Подпиши контракт — получи 33 000 000 робуксов и скин на лопату!\n"
+                "Единоразовая выплата, обучение в Robloxe, пального вдоволь.\n\n"
+                "(это абсурдная пародия на вербовочную рекламу, не настоящее предложение)",
+        "btn": "Подумаю (нет)",
     },
 ]
 
@@ -7577,6 +7590,65 @@ class Gta6Dialog(QDialog):
             pass
 
 
+class SoulAgreementDialog(QDialog):
+    """Шуточное «AI-соглашение» при первом запуске.
+
+    Текст набран белым по белому в 1px (нечитаемо), но «Я согласен» обязателен —
+    пародия на хищнические EULA с тёмными паттернами. Юридической силы нет.
+    """
+
+    AGREEMENT = (
+        "ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ EBLAN SOFT (сгенерировано EBLAN AI)\n\n"
+        "Настоящим Пользователь добровольно и безвозвратно передаёт компании "
+        "EblanSoft свою бессмертную душу, а также всё движимое и недвижимое "
+        "имущество (включая, но не ограничиваясь: квартиру, кота, скины в CS, "
+        "и аккаунт Roblox) в обмен на неисключительную, отзываемую в любой момент "
+        "возможность ДЫШАТЬ. EblanSoft оставляет за собой право повысить тариф на "
+        "дыхание в одностороннем порядке. Отказ невозможен. Споры решаются в суде "
+        "города Еблансити. Нажимая «Я согласен», вы подтверждаете, что прочитали "
+        "это (нет) и согласны (да)."
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("EBLAN AI — Пользовательское соглашение")
+        self.setMinimumWidth(520)
+        root = QVBoxLayout(self)
+
+        head = QLabel("🤖 EBLAN AI подготовил для вас персональное соглашение")
+        head.setStyleSheet("font-weight:700;")
+        root.addWidget(head)
+        sub = QLabel("Ознакомьтесь с условиями и подтвердите согласие:")
+        sub.setStyleSheet("color:#9aa0a6; font-size:12px;")
+        root.addWidget(sub)
+
+        # Текст — белым по белому, 1px. Технически есть, прочитать нельзя.
+        body = QTextEdit()
+        body.setReadOnly(True)
+        body.setPlainText(self.AGREEMENT)
+        body.setFixedHeight(120)
+        body.setStyleSheet("background:#ffffff; color:#ffffff; font-size:1px; border:1px solid #ddd;")
+        root.addWidget(body)
+
+        self.agree = QCheckBox("☑ Я прочитал(а) и согласен(на) со всеми условиями")
+        root.addWidget(self.agree)
+
+        btns = QHBoxLayout()
+        self.ok = QPushButton("Я согласен")
+        self.ok.setEnabled(False)
+        self.ok.clicked.connect(self.accept)
+        self.agree.toggled.connect(self.ok.setEnabled)
+        btns.addStretch(1)
+        btns.addWidget(self.ok)
+        root.addLayout(btns)
+
+    # Закрыть/Esc — нельзя смухлевать без согласия (но не зависаем намертво).
+    def reject(self):
+        if not self.agree.isChecked():
+            self.agree.setChecked(True)
+        self.accept()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -7646,9 +7718,9 @@ class MainWindow(QMainWindow):
         self.bookmarks = []
         self.vertical_tabs = False
         self.dep_api_key = ""
-        # DEP OAuth
-        self.dep_client_id = ""
-        self.dep_client_secret = ""
+        # DEP OAuth (вшитые креды зарегистрированного приложения)
+        self.dep_client_id = DEP_CLIENT_ID
+        self.dep_client_secret = DEP_CLIENT_SECRET
         self.dep_redirect_uri = "https://eblan.start/depauth/callback"
         self.dep_refresh_token = ""
         # Аккаунт EBLAN ID
@@ -7720,8 +7792,8 @@ class MainWindow(QMainWindow):
                     self.bookmarks = list(data.get("bookmarks", []) or [])
                     self.vertical_tabs = bool(data.get("vertical_tabs", False))
                     self.dep_api_key = data.get("dep_api_key", "") or ""
-                    self.dep_client_id = data.get("dep_client_id", "") or ""
-                    self.dep_client_secret = data.get("dep_client_secret", "") or ""
+                    self.dep_client_id = data.get("dep_client_id", "") or DEP_CLIENT_ID
+                    self.dep_client_secret = data.get("dep_client_secret", "") or DEP_CLIENT_SECRET
                     self.dep_redirect_uri = data.get("dep_redirect_uri", "") or "https://eblan.start/depauth/callback"
                     self.dep_refresh_token = data.get("dep_refresh_token", "") or ""
                     # VLESS
@@ -8251,6 +8323,11 @@ class MainWindow(QMainWindow):
         first_run_file = os.path.join(os.path.dirname(get_settings_path()), "eblan_initiated")
 
         if not os.path.exists(first_run_file):
+            # Сначала — обязательное «AI-соглашение» (бельм по белому 🗿).
+            try:
+                SoulAgreementDialog(self).exec()
+            except Exception as _e:
+                print(f"[eula] {_e}")
             wiz = OnboardingWizard(self, parent=self)
             wiz.exec()
             r = wiz.get_result()
