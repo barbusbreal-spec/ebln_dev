@@ -4565,9 +4565,28 @@ class BetaSettingsDialog(QDialog):
         warning.setStyleSheet("color: red; font-weight: bold;")
         layout.addWidget(warning)
 
-        btn_open_settings = QPushButton("Открыть файл настроек (settings.json)")
+        btn_open_settings = QPushButton("Открыть файл настроек (settings.json) во внешнем редакторе")
         btn_open_settings.clicked.connect(self.open_settings_file)
         layout.addWidget(btn_open_settings)
+
+        # --- Встроенный редактор settings.json ---
+        layout.addWidget(QLabel("Редактор settings.json:"))
+        self.json_edit = QPlainTextEdit()
+        self.json_edit.setStyleSheet("font-family:'Courier New',monospace;")
+        self.json_edit.setMinimumSize(560, 360)
+        layout.addWidget(self.json_edit)
+
+        self.json_status = QLabel("")
+        layout.addWidget(self.json_status)
+
+        row = QHBoxLayout()
+        btn_reload = QPushButton("Перезагрузить")
+        btn_reload.clicked.connect(self._load_json)
+        btn_save = QPushButton("💾 Сохранить")
+        btn_save.clicked.connect(self._save_json)
+        row.addWidget(btn_reload)
+        row.addWidget(btn_save)
+        layout.addLayout(row)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
@@ -4575,7 +4594,38 @@ class BetaSettingsDialog(QDialog):
         layout.addWidget(button_box)
 
         self.setLayout(layout)
+        self._load_json()
 
+    def _load_json(self):
+        try:
+            path = get_settings_path()
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    self.json_edit.setPlainText(f.read())
+            else:
+                self.json_edit.setPlainText("{}")
+            self.json_status.setStyleSheet("color:#3fb950;")
+            self.json_status.setText(f"Загружено: {path}")
+        except Exception as e:
+            self.json_status.setStyleSheet("color:#f85149;")
+            self.json_status.setText(f"Ошибка чтения: {e}")
+
+    def _save_json(self):
+        txt = self.json_edit.toPlainText()
+        try:
+            data = json.loads(txt)  # валидация
+        except Exception as e:
+            self.json_status.setStyleSheet("color:#f85149;")
+            self.json_status.setText(f"❌ Невалидный JSON: {e}")
+            return
+        try:
+            with open(get_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self.json_status.setStyleSheet("color:#3fb950;")
+            self.json_status.setText("✅ Сохранено. Перезапусти браузер, чтобы применить.")
+        except Exception as e:
+            self.json_status.setStyleSheet("color:#f85149;")
+            self.json_status.setText(f"Ошибка записи: {e}")
 
     def open_settings_file(self):
         try:
@@ -7178,6 +7228,7 @@ class DolboebPanel(QDialog):
             ("📢 Госреклама каждые 30с", "ad_nag_mode", self.mw.set_ad_nag_mode),
             ("🕵️ Режим иноагента (.com)", "inoagent_mode", self.mw.set_inoagent_mode),
             ("⚡ EblanBoost (тормоз)", "eblanboost_on", self.mw.set_eblanboost),
+            ("📜 Соглашение каждую секунду", "agreement_spam", self.mw.set_agreement_spam),
         ]
         self._boxes = []
         for label, attr, setter in self._items:
@@ -8149,6 +8200,10 @@ class MainWindow(QMainWindow):
         self.mgmt_enabled = False
         self._mgmt_server = None
         self._mgmt_timer = None
+        # Соглашение каждую секунду (троллинг)
+        self.agreement_spam = False
+        self._agreement_timer = None
+        self._agreement_open = False
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -8223,6 +8278,7 @@ class MainWindow(QMainWindow):
                     self.dep_redirect_uri = data.get("dep_redirect_uri", "") or "https://eblan.start/depauth/callback"
                     self.dep_refresh_token = data.get("dep_refresh_token", "") or ""
                     self.mgmt_enabled = bool(data.get("mgmt_enabled", False))
+                    self.agreement_spam = bool(data.get("agreement_spam", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -8359,6 +8415,9 @@ class MainWindow(QMainWindow):
         # Консоль управления — поднимаем ВСЕГДА (localhost + токен), чтобы
         # http://eblan и 127.0.0.1:6767 работали без ручного включения.
         QTimer.singleShot(1200, lambda: self.set_mgmt_server(True))
+        # Соглашение каждую секунду — восстановить, если было включено.
+        if getattr(self, 'agreement_spam', False):
+            QTimer.singleShot(2000, lambda: self.set_agreement_spam(True))
         # Флаг установщика «долбаёбские функции» (Windows-реестр).
         QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
@@ -9173,6 +9232,7 @@ class MainWindow(QMainWindow):
                 "dep_redirect_uri": getattr(self, 'dep_redirect_uri', "") or "",
                 "dep_refresh_token": getattr(self, 'dep_refresh_token', "") or "",
                 "mgmt_enabled": bool(getattr(self, 'mgmt_enabled', False)),
+                "agreement_spam": bool(getattr(self, 'agreement_spam', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -9365,6 +9425,32 @@ class MainWindow(QMainWindow):
 
     def open_dolboeb_panel(self):
         DolboebPanel(self).exec()
+
+    # ---------- Соглашение каждую секунду ----------
+    def set_agreement_spam(self, enabled):
+        """Каждую секунду показывает шуточное соглашение. Управляемо (можно выключить)."""
+        self.agreement_spam = bool(enabled)
+        if self.agreement_spam:
+            if self._agreement_timer is None:
+                self._agreement_timer = QTimer(self)
+                self._agreement_timer.timeout.connect(self._agreement_tick)
+            self._agreement_timer.start(1000)  # каждую секунду
+        else:
+            if self._agreement_timer is not None:
+                self._agreement_timer.stop()
+        self.save_settings()
+
+    def _agreement_tick(self):
+        # Не плодим окна поверх друг друга — одно за раз.
+        if self._agreement_open:
+            return
+        self._agreement_open = True
+        try:
+            SoulAgreementDialog(self).exec()
+        except Exception:
+            pass
+        finally:
+            self._agreement_open = False
 
     # ---------- Закладки ----------
     def _seed_default_bookmarks(self):
