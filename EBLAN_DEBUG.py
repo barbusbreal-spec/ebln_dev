@@ -6736,11 +6736,57 @@ class CalculatorDialog(QDialog):
 #   Своя стартовая страница с анимированными «обоями».
 #   Кнопки — ссылки eblan:<cmd>, перехватываются EblanPage.
 # ============================================================
-def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
+def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False, crypto_on=False):
     gaming_label = "🎮 Гейминг: ВКЛ" if gaming_on else "🎮 Гейминг-режим"
     gaming_cls = "btn primary on" if gaming_on else "btn primary"
     boost_badge = ('<span class="chip ok">⚡ EblanBoost ×1488</span>' if boost_on else "")
     rot_note = ""
+
+    # Режим криптана: курс + графики, +1488 к реальным, дефолт $EBLN = 67 млрд $.
+    crypto_block = ""
+    crypto_script = ""
+    if crypto_on:
+        crypto_block = """
+      <style>
+        .crypto{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px;width:min(680px,92vw);margin-top:18px;}
+        .crypto-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+        .coins{display:flex;gap:6px;flex-wrap:wrap;}
+        .coin{background:var(--panel2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:700;font-size:12px;}
+        .coin.on{border-color:var(--accent);color:var(--text);}
+        .crypto-tag{color:var(--muted);font-size:11px;}
+        .crypto-main{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:10px;}
+        .crypto-price{font-size:26px;font-weight:800;}
+        .crypto-ch{font-weight:700;}
+        .spark{width:300px;height:80px;}
+      </style>
+      <div class="crypto">
+        <div class="crypto-head">
+          <div class="coins" id="coins"></div>
+          <div class="crypto-tag">📈 EBLAN CRYPTO · +1488 к реальному курсу</div>
+        </div>
+        <div class="crypto-main">
+          <div><div class="crypto-price" id="cprice">$67.00 млрд</div>
+          <div class="crypto-ch" id="cchange">▲ +1488.00%</div></div>
+          <svg class="spark" id="spark" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+        </div>
+      </div>"""
+        crypto_script = """<script>
+      (function(){
+        const COINS=[{s:"$EBLN",p:67000000000},{s:"BTC",p:95000+1488},{s:"ETH",p:3300+1488},
+          {s:"TON",p:5+1488},{s:"DOGE",p:0.12+1488},{s:"PEPE",p:0.000012+1488}];
+        let cur=0; const ce=document.getElementById("coins");
+        COINS.forEach((c,i)=>{const b=document.createElement("button");b.className="coin"+(i===0?" on":"");b.textContent=c.s;
+          b.onclick=()=>{cur=i;document.querySelectorAll(".coin").forEach(x=>x.classList.remove("on"));b.classList.add("on");render();};ce.appendChild(b);});
+        function fmt(n){if(n>=1e9)return "$"+(n/1e9).toFixed(2)+" млрд";if(n>=1e6)return "$"+(n/1e6).toFixed(2)+" млн";if(n>=1)return "$"+n.toLocaleString("ru-RU",{maximumFractionDigits:2});return "$"+n.toFixed(6);}
+        function render(){const c=COINS[cur];const j=c.p*(1+(Math.random()-0.5)*0.02);
+          document.getElementById("cprice").textContent=fmt(j);
+          const ch=(1488+(Math.random()*200-100)).toFixed(2);const up=ch>=0;const e=document.getElementById("cchange");
+          e.textContent=(up?"▲ +":"▼ ")+ch+"%";e.style.color=up?"#3fb950":"#f85149";
+          let pts=[],y=40;for(let i=0;i<30;i++){y+=(Math.random()-0.45)*14;y=Math.max(8,Math.min(72,y));pts.push((i/29*300).toFixed(1)+","+y.toFixed(1));}
+          document.getElementById("spark").innerHTML='<polyline fill="none" stroke="#3fb950" stroke-width="2" points="'+pts.join(" ")+'"/>';}
+        render();setInterval(render,1800);
+      })();
+      </script>"""
 
     def tile(href, icon, title, sub):
         return (f'<a class="tile" href="{href}">'
@@ -6760,6 +6806,11 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
         tile("eblan:cheats", "🧩", "Читы", "панель кодов"),
         tile("eblan:keygen", "🔑", "Keygen", "ключи WinRAR"),
         tile("eblan:cert", "🛡️", "Сертификаты", "Минцифры · Еблан Секьюр"),
+        tile("eblan:adhd", "🧠", "СДВГ режим", "67 панелей дофамина"),
+        tile("eblan:anon", "🧅", "Ультра аноним", "Tor · защита 670%"),
+        tile("eblan:crypto", "📈", "Криптан", "курс +1488, $EBLN"),
+        tile("eblan:settings", "⚙️", "Настройки", "веб-страница"),
+        tile("eblan:changelog", "📋", "Чейнджлог 6.7", "что добавили"),
     ])
 
     return f"""<!DOCTYPE html>
@@ -6869,6 +6920,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
         <input type="text" name="text" placeholder="Поиск в Яндексе или адрес сайта…" autofocus>
       </form>
 
+      {crypto_block}
       <div class="tiles">{tiles}</div>
       {rot_note}
     </main>
@@ -6878,6 +6930,7 @@ def eblan_start_page_html(balance=0, gaming_on=False, boost_on=False):
       <span>сертификаты: Минцифры ✅ · Еблан Секьюр ✅</span>
     </footer>
   </div>
+  {crypto_script}
 </body></html>"""
 
 
@@ -7230,6 +7283,8 @@ class DolboebPanel(QDialog):
             ("⚡ EblanBoost (тормоз)", "eblanboost_on", self.mw.set_eblanboost),
             ("📜 Соглашение каждую секунду", "agreement_spam", self.mw.set_agreement_spam),
             ("📣 Кликбейт-уведомления (Минцифры 67к)", "notif_spam", self.mw.set_notif_spam),
+            ("📈 Режим криптана (на стартовой)", "crypto_mode", self.mw.set_crypto_mode),
+            ("🔴 Уведомления о стримах Меллстроя", "mellstroy_notif", self.mw.set_mellstroy_notif),
         ]
         self._boxes = []
         for label, attr, setter in self._items:
@@ -7999,6 +8054,8 @@ class _MgmtHandler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         if path in ("/", "/dashboard", "/index.html"):
             self._send(200, _mgmt_dashboard_html())
+        elif path == "/settings":
+            self._send(200, _mgmt_settings_html())
         elif path == "/api/state":
             with _MGMT.lock:
                 snap = json.dumps(_MGMT.snapshot, ensure_ascii=False)
@@ -8087,6 +8144,41 @@ async function load(){{
     `<tr><td>${{c.index}}</td><td>${{c.title||''}}</td><td style="max-width:340px;overflow:hidden;text-overflow:ellipsis">${{c.url||''}}</td>`+
     `<td><button onclick="act({{action:'focus_tab',index:${{c.index}}}})">Фокус</button> `+
     `<button onclick="act({{action:'close_tab',index:${{c.index}}}})">Закрыть</button></td></tr>`).join('');
+}}
+load(); setInterval(load,2500);
+</script></body></html>"""
+
+
+def _mgmt_settings_html():
+    token = _MGMT.token
+    return f"""<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<title>EBLAN — Настройки</title><style>
+ *{{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',sans-serif}}
+ body{{background:#202124;color:#e8eaed;padding:24px;}}
+ h1{{font-size:22px;margin-bottom:4px}} .sub{{color:#9aa0a6;font-size:13px;margin-bottom:20px}}
+ .list{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;}}
+ .item{{background:#292a2d;border:1px solid #3c4043;border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}}
+ .sw{{width:46px;height:26px;border-radius:14px;background:#3c4043;position:relative;cursor:pointer;transition:.15s;border:none;}}
+ .sw.on{{background:#3fb950;}} .sw::after{{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s;}}
+ .sw.on::after{{left:23px;}}
+ a{{color:#8ab4f8;}}
+</style></head><body>
+ <h1>⚙️ EBLAN — Настройки (веб)</h1>
+ <div class="sub">Тумблеры применяются сразу. Консоль: <a href="/">/</a></div>
+ <div class="list" id="list"></div>
+<script>
+const TOKEN={token!r};
+async function setMode(k,on){{
+  await fetch('/api/action',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{token:TOKEN,action:'set_mode',mode:k,on:on}})}});
+  setTimeout(load,300);
+}}
+async function load(){{
+  const s=await (await fetch('/api/state')).json();
+  const m=s.modes||{{}};
+  document.getElementById('list').innerHTML=Object.keys(m).map(k=>
+    `<div class="item"><span>${{m[k].label}}</span>`+
+    `<button class="sw ${{m[k].on?'on':''}}" onclick="setMode('${{k}}',${{!m[k].on}})"></button></div>`).join('');
 }}
 load(); setInterval(load,2500);
 </script></body></html>"""
@@ -8209,6 +8301,11 @@ class MainWindow(QMainWindow):
         self.notif_spam = False
         self._notif_timer = None
         self._tray = None
+        # Режим криптана / ультра-аноним / уведомления Меллстроя
+        self.crypto_mode = False
+        self.ultra_anon = False
+        self.mellstroy_notif = False
+        self._mellstroy_timer = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -8285,6 +8382,8 @@ class MainWindow(QMainWindow):
                     self.mgmt_enabled = bool(data.get("mgmt_enabled", False))
                     self.agreement_spam = bool(data.get("agreement_spam", False))
                     self.notif_spam = bool(data.get("notif_spam", False))
+                    self.crypto_mode = bool(data.get("crypto_mode", False))
+                    self.mellstroy_notif = bool(data.get("mellstroy_notif", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -8427,6 +8526,9 @@ class MainWindow(QMainWindow):
         # Кликбейт-уведомления — восстановить, если были включены.
         if getattr(self, 'notif_spam', False):
             QTimer.singleShot(2500, lambda: self.set_notif_spam(True))
+        # Уведомления Меллстроя — восстановить.
+        if getattr(self, 'mellstroy_notif', False):
+            QTimer.singleShot(3000, lambda: self.set_mellstroy_notif(True))
         # Флаг установщика «долбаёбские функции» (Windows-реестр).
         QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
@@ -8788,6 +8890,26 @@ class MainWindow(QMainWindow):
         plus_action.setStatusTip("20 уровней подписки от FREE до ALLAH")
         plus_action.triggered.connect(self.open_plus)
         br_menu.addAction(plus_action)
+
+        adhd_action = QAction("🧠 УЛЬТРА ЗУМЕР СДВГ (67 панелей)", self)
+        adhd_action.setStatusTip("Открыть 67 панелей с тиктоком/шортсами/дичью")
+        adhd_action.triggered.connect(self.start_adhd_mode)
+        br_menu.addAction(adhd_action)
+
+        anon_action2 = QAction("🧅 УЛЬТРА анонимный режим", self)
+        anon_action2.setStatusTip("Tor + дашборд защиты (уровень 670%)")
+        anon_action2.triggered.connect(lambda: self.set_ultra_anon(True))
+        br_menu.addAction(anon_action2)
+
+        websettings_action = QAction("⚙️ Настройки (веб)", self)
+        websettings_action.setStatusTip("Настройки на веб-странице — тумблеры всех режимов")
+        websettings_action.triggered.connect(self.open_web_settings)
+        br_menu.addAction(websettings_action)
+
+        changelog_action = QAction("📋 Чейнджлог 6.7 (что добавили)", self)
+        changelog_action.setStatusTip("Полный список обновления 6.7")
+        changelog_action.triggered.connect(self.open_changelog)
+        br_menu.addAction(changelog_action)
 
         vibe_action = QAction("🤖 Режим вайбкода (ИИ-агент + терминал)", self)
         vibe_action.setStatusTip("ИИ-агент для вайбкода с терминалом")
@@ -9243,6 +9365,8 @@ class MainWindow(QMainWindow):
                 "mgmt_enabled": bool(getattr(self, 'mgmt_enabled', False)),
                 "agreement_spam": bool(getattr(self, 'agreement_spam', False)),
                 "notif_spam": bool(getattr(self, 'notif_spam', False)),
+                "crypto_mode": bool(getattr(self, 'crypto_mode', False)),
+                "mellstroy_notif": bool(getattr(self, 'mellstroy_notif', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -9424,6 +9548,20 @@ class MainWindow(QMainWindow):
         browser.loadFinished.connect(lambda ok, i=i, b=browser: self.on_tab_load_finished(i, b))
         browser.setHtml(html, QUrl("https://eblan.plus/"))
 
+    def open_changelog(self):
+        """Полный чейнджлог обновления 6.7 (локальная страница)."""
+        html = load_local_page_html("changelog.html")
+        if not html:
+            QMessageBox.information(self, "Чейнджлог", "Файл pages/changelog.html не найден.")
+            return
+        browser = QWebEngineView()
+        page = EblanPage(self.web_profile, browser, self)
+        browser.setPage(page)
+        i = self.tabs.addTab(browser, "📋 Чейнджлог 6.7")
+        self.tabs.setCurrentIndex(i)
+        browser.loadFinished.connect(lambda ok, i=i, b=browser: self.on_tab_load_finished(i, b))
+        browser.setHtml(html, QUrl("https://eblan.changelog/"))
+
     def open_vibecode(self):
         VibeCodeDialog(self).exec()
 
@@ -9545,6 +9683,130 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    # ---------- Режим криптана ----------
+    def set_crypto_mode(self, enabled):
+        self.crypto_mode = bool(enabled)
+        self.save_settings()
+        w = self.tabs.currentWidget()
+        if isinstance(w, QWebEngineView):
+            self.load_start_page(w)
+
+    # ---------- УЛЬТРА ЗУМЕР СДВГ (67 панелей) ----------
+    ADHD_SITES = [
+        "https://www.youtube.com/shorts", "https://www.tiktok.com",
+        "https://www.instagram.com/reels/", "https://9gag.com",
+        "https://www.reddit.com/r/all/", "https://www.pinterest.com",
+        "https://imgur.com", "https://x.com",
+    ]
+
+    def start_adhd_mode(self):
+        ans = QMessageBox.question(
+            self, "🧠 УЛЬТРА ЗУМЕР СДВГ",
+            "Открыть 67 панелей с тиктоком, шортсами и кучей хуйни?\n"
+            "Браузер может умереть. Дофамин гарантирован.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        for i in range(67):
+            url = self.ADHD_SITES[i % len(self.ADHD_SITES)]
+            QTimer.singleShot(i * 110, lambda u=url: self._z_open_tab(u))
+        self.status.showMessage("🧠 СДВГ-режим: 67 панелей дофамина 🔥", 6000)
+
+    # ---------- Уведомления о стримах Меллстроя ----------
+    def set_mellstroy_notif(self, enabled):
+        self.mellstroy_notif = bool(enabled)
+        if self.mellstroy_notif:
+            self._ensure_tray()
+            if self._tray is not None:
+                try: self._tray.show()
+                except Exception: pass
+            if self._mellstroy_timer is None:
+                self._mellstroy_timer = QTimer(self)
+                self._mellstroy_timer.timeout.connect(self._mellstroy_tick)
+            self._mellstroy_timer.start(random.randint(25000, 70000))
+        else:
+            if self._mellstroy_timer is not None:
+                self._mellstroy_timer.stop()
+        self.save_settings()
+
+    def _mellstroy_tick(self):
+        if not self.mellstroy_notif:
+            return
+        body = random.choice([
+            "🔴 Меллстрой сейчас в эфире! Раздаёт 6.7 млн. Залетай 👉",
+            "🔴 Mellstroy LIVE — крутит казик на твои деньги. Смотреть",
+            "🔴 Меллстрой начал стрим: «открываю 67 кейсов». Залетай",
+        ])
+        try:
+            tray = self._ensure_tray()
+            if tray is not None and QSystemTrayIcon.isSystemTrayAvailable():
+                tray.show()
+                tray.showMessage("Mellstroy 🔴 LIVE", body, QSystemTrayIcon.MessageIcon.Critical, 10000)
+            elif sys.platform.startswith("linux"):
+                subprocess.Popen(["notify-send", "Mellstroy LIVE", body])
+        except Exception:
+            pass
+        if self._mellstroy_timer is not None:
+            self._mellstroy_timer.start(random.randint(25000, 70000))
+
+    # ---------- УЛЬТРА анонимный режим (Tor + защита) ----------
+    def set_ultra_anon(self, enabled):
+        """Открывает дашборд защиты. Пытается завернуть Qt-запросы в Tor SOCKS
+        (127.0.0.1:9050), если Tor запущен. Цифры защиты — фейковые (троллинг)."""
+        self.ultra_anon = bool(enabled)
+        tor_ok = False
+        if enabled:
+            try:
+                s = socket.create_connection(("127.0.0.1", 9050), timeout=1.5)
+                s.close(); tor_ok = True
+                px = QNetworkProxy(QNetworkProxy.ProxyType.Socks5Proxy, "127.0.0.1", 9050)
+                QNetworkProxy.setApplicationProxy(px)
+            except Exception:
+                tor_ok = False
+            html = self.ultra_anon_page_html(tor_ok)
+            browser = QWebEngineView()
+            page = EblanPage(self.web_profile, browser, self)
+            browser.setPage(page)
+            i = self.tabs.addTab(browser, "🧅 УЛЬТРА АНОНИМ")
+            self.tabs.setCurrentIndex(i)
+            browser.setHtml(html, QUrl("https://eblan.anon/"))
+            self.status.showMessage(
+                "🧅 Ультра-аноним ВКЛ · уровень защиты 670% ✅" +
+                ("" if tor_ok else " (Tor не найден — защита косметическая)"), 8000)
+        else:
+            try:
+                QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy))
+            except Exception:
+                pass
+
+    def ultra_anon_page_html(self, tor_ok):
+        rows = [
+            ("Уровень защиты", "670% 🛡️"),
+            ("Tor .onion", "ПОДКЛЮЧЕН ✅" if tor_ok else "не найден (поставь Tor) ⚠️"),
+            ("Твой реальный IP", "СКРЫТ 🕳️"),
+            ("Трекеров заблокировано", "6767 🚫"),
+            ("Слежка ФСБ/ЦРУ/МИ-6", "ОТКЛЮЧЕНА ✅"),
+            ("Отпечаток браузера", "ПОДМЕНЁН на 1488 🎭"),
+            ("Шифрование", "AES-67000 квантовое 🔐"),
+            ("Невидимость", "146% 👻"),
+        ]
+        items = "".join(
+            f'<div class="row"><span>{k}</span><b>{v}</b></div>' for k, v in rows)
+        return ("<!DOCTYPE html><html><head><meta charset='utf-8'><title>УЛЬТРА АНОНИМ</title>"
+                "<style>body{background:#07090c;color:#e7e9ee;font-family:'Segoe UI',sans-serif;"
+                "display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;}"
+                "h1{font-size:34px;color:#3fb950;text-shadow:0 0 24px rgba(63,185,80,.5);}"
+                ".sub{color:#9aa0a6;margin-bottom:24px;}"
+                ".panel{background:#0d1117;border:1px solid #1f6feb;border-radius:14px;padding:8px 20px;width:min(560px,92vw);"
+                "box-shadow:0 0 50px rgba(31,111,235,.2);}"
+                ".row{display:flex;justify-content:space-between;padding:12px 4px;border-bottom:1px solid #161b22;}"
+                ".row b{color:#3fb950;}</style></head><body>"
+                "<h1>🧅 УЛЬТРА АНОНИМНЫЙ РЕЖИМ</h1>"
+                "<div class='sub'>тебя больше никто не видит (наверное)</div>"
+                f"<div class='panel'>{items}</div></body></html>")
+
     # ---------- Закладки ----------
     def _seed_default_bookmarks(self):
         if not self.bookmarks:
@@ -9653,6 +9915,31 @@ class MainWindow(QMainWindow):
         if self.mgmt_enabled:
             self.add_new_tab(QUrl(f"http://{MGMT_HOST}:{MGMT_PORT}/"), "🏢 Консоль")
 
+    def open_web_settings(self):
+        """Веб-страница настроек (тумблеры всех режимов) через mgmt-сервер."""
+        if not self.mgmt_enabled:
+            self.set_mgmt_server(True)
+        if self.mgmt_enabled:
+            self.add_new_tab(QUrl(f"http://{MGMT_HOST}:{MGMT_PORT}/settings"), "⚙️ Настройки")
+
+    def _mode_map(self):
+        """key -> (label, attr, setter). Используется веб-настройками и консолью."""
+        return {
+            "gaming":    ("🎮 Гейминг", "gamer_mode", lambda v: self.set_gamer_mode(v, force=True)),
+            "chaos":     ("💥 ПИЗДЕЦ-режим", "chaos_mode", self.set_chaos_mode),
+            "six_seven": ("🤙 Six-Seven", "six_seven_mode", self.set_six_seven_mode),
+            "zoomer":    ("💀 Зумер (aura)", "zoomer_mode", self.set_zoomer_mode),
+            "image":     ("🐐 Фото-оверлей", "image_overlay_on", self.set_image_overlay),
+            "ad":        ("📢 Госреклама", "ad_nag_mode", self.set_ad_nag_mode),
+            "inoagent":  ("🕵️ Иноагент (.com)", "inoagent_mode", self.set_inoagent_mode),
+            "boost":     ("⚡ EblanBoost (тормоз)", "eblanboost_on", self.set_eblanboost),
+            "crypto":    ("📈 Режим криптана", "crypto_mode", self.set_crypto_mode),
+            "vtabs":     ("↕️ Вертикальные вкладки", "vertical_tabs", self.toggle_vertical_tabs),
+            "notif":     ("📣 Кликбейт-уведомления", "notif_spam", self.set_notif_spam),
+            "mellstroy": ("🔴 Уведомления Меллстроя", "mellstroy_notif", self.set_mellstroy_notif),
+            "agreement": ("📜 Соглашение каждую сек", "agreement_spam", self.set_agreement_spam),
+        }
+
     def _mgmt_snapshot(self):
         clients = []
         try:
@@ -9666,8 +9953,15 @@ class MainWindow(QMainWindow):
                 clients.append({"index": i, "title": title, "url": url})
         except Exception:
             pass
+        modes = {}
+        try:
+            for key, (label, attr, _setter) in self._mode_map().items():
+                modes[key] = {"label": label, "on": bool(getattr(self, attr, False))}
+        except Exception:
+            pass
         return {
             "clients": clients,
+            "modes": modes,
             "info": {
                 "version": self.current_version,
                 "cash": int(getattr(self, "eblan_cash", 0)),
@@ -9720,6 +10014,14 @@ class MainWindow(QMainWindow):
                 self.set_gamer_mode(not self.gamer_mode, force=True)
             elif mode == "chaos":
                 self.set_chaos_mode(not getattr(self, "chaos_mode", False))
+        elif a == "set_mode":
+            mm = self._mode_map().get(act.get("mode"))
+            if mm:
+                _label, _attr, setter = mm
+                try:
+                    setter(bool(act.get("on")))
+                except Exception as e:
+                    print(f"[mgmt] set_mode {act.get('mode')}: {e}")
         elif a == "message":
             txt = act.get("text") or ""
             if txt:
@@ -11042,6 +11344,7 @@ class MainWindow(QMainWindow):
                 balance=int(getattr(self, "eblan_cash", 0)),
                 gaming_on=bool(getattr(self, "gamer_mode", False)),
                 boost_on=bool(getattr(self, "eblanboost_on", False)),
+                crypto_on=bool(getattr(self, "crypto_mode", False)),
             )
             browser.setHtml(html, QUrl("https://eblan.start/"))
         except Exception as e:
@@ -11080,6 +11383,16 @@ class MainWindow(QMainWindow):
             self.open_eblan_console()
         elif cmd == "undertale":
             self.open_undertale()
+        elif cmd == "adhd":
+            self.start_adhd_mode()
+        elif cmd == "anon":
+            self.set_ultra_anon(True)
+        elif cmd == "settings":
+            self.open_web_settings()
+        elif cmd == "crypto":
+            self.set_crypto_mode(not getattr(self, "crypto_mode", False))
+        elif cmd == "changelog":
+            self.open_changelog()
         elif cmd == "boost":
             self.set_eblanboost(not getattr(self, "eblanboost_on", False))
             w = self.tabs.currentWidget()
