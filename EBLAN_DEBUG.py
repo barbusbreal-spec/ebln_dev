@@ -1864,8 +1864,8 @@ def _vless_bootstrap():
         # SOCKS5 остаётся для остальных Qt-запросов (QNetworkProxy).
         flags_list = [
             f'--proxy-server="http://127.0.0.1:{mgr.http_port}"',
-            # никакого прокси для localhost/127.0.0.1
-            '--proxy-bypass-list="<-loopback>"',
+            # никакого прокси для localhost/127.0.0.1 (иначе консоль http://eblan не достучаться)
+            '--proxy-bypass-list="127.0.0.1,localhost,[::1]"',
             # страховка от DNS-leak: любой локальный резолв проваливается,
             # Chromium передаёт hostname прямо прокси-серверу
             '--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE localhost"',
@@ -8356,9 +8356,9 @@ class MainWindow(QMainWindow):
         # EblanBoost — восстановить, если был включён.
         if getattr(self, 'eblanboost_on', False):
             QTimer.singleShot(1400, lambda: self.set_eblanboost(True))
-        # Консоль управления — поднять, если была включена.
-        if getattr(self, 'mgmt_enabled', False):
-            QTimer.singleShot(1500, lambda: self.set_mgmt_server(True))
+        # Консоль управления — поднимаем ВСЕГДА (localhost + токен), чтобы
+        # http://eblan и 127.0.0.1:6767 работали без ручного включения.
+        QTimer.singleShot(1200, lambda: self.set_mgmt_server(True))
         # Флаг установщика «долбаёбские функции» (Windows-реестр).
         QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
@@ -10932,7 +10932,8 @@ class MainWindow(QMainWindow):
             self.tabs.currentWidget().setUrl(QUrl("https://ya.ru/"))
             return
         elif domain in self.special_domains or f"www.{domain}" in self.special_domains:
-            QMessageBox.information(self, "Предупреждение", "Сайт от больного ДЦП, относитесь с уважением.")
+            if domain not in ("127.0.0.1", "localhost", "eblan"):
+                QMessageBox.information(self, "Предупреждение", "Сайт от больного ДЦП, относитесь с уважением.")
         elif domain in self.allowed_exceptions or f"www.{domain}" in self.allowed_exceptions:
             if domain != 'sites.google.com' and f"www.{domain}" != 'sites.google.com':
                 QMessageBox.warning(self, "Антивирус СОСНИ!", "Доступ к этому сайту разрешен как исключение, но он не соответствует политике безопасности.")
