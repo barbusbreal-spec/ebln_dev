@@ -7229,6 +7229,7 @@ class DolboebPanel(QDialog):
             ("🕵️ Режим иноагента (.com)", "inoagent_mode", self.mw.set_inoagent_mode),
             ("⚡ EblanBoost (тормоз)", "eblanboost_on", self.mw.set_eblanboost),
             ("📜 Соглашение каждую секунду", "agreement_spam", self.mw.set_agreement_spam),
+            ("📣 Кликбейт-уведомления (Минцифры 67к)", "notif_spam", self.mw.set_notif_spam),
         ]
         self._boxes = []
         for label, attr, setter in self._items:
@@ -8204,6 +8205,10 @@ class MainWindow(QMainWindow):
         self.agreement_spam = False
         self._agreement_timer = None
         self._agreement_open = False
+        # Кликбейт-уведомления (нативные, Win/Linux)
+        self.notif_spam = False
+        self._notif_timer = None
+        self._tray = None
         # Аккаунт EBLAN ID
         self.eblan_account = None
         self.eblan_token = None
@@ -8279,6 +8284,7 @@ class MainWindow(QMainWindow):
                     self.dep_refresh_token = data.get("dep_refresh_token", "") or ""
                     self.mgmt_enabled = bool(data.get("mgmt_enabled", False))
                     self.agreement_spam = bool(data.get("agreement_spam", False))
+                    self.notif_spam = bool(data.get("notif_spam", False))
                     # VLESS
                     try:
                         self.vless_controller.load_from_settings(data)
@@ -8418,6 +8424,9 @@ class MainWindow(QMainWindow):
         # Соглашение каждую секунду — восстановить, если было включено.
         if getattr(self, 'agreement_spam', False):
             QTimer.singleShot(2000, lambda: self.set_agreement_spam(True))
+        # Кликбейт-уведомления — восстановить, если были включены.
+        if getattr(self, 'notif_spam', False):
+            QTimer.singleShot(2500, lambda: self.set_notif_spam(True))
         # Флаг установщика «долбаёбские функции» (Windows-реестр).
         QTimer.singleShot(1600, self._apply_installer_dolboeb_flag)
 
@@ -9233,6 +9242,7 @@ class MainWindow(QMainWindow):
                 "dep_refresh_token": getattr(self, 'dep_refresh_token', "") or "",
                 "mgmt_enabled": bool(getattr(self, 'mgmt_enabled', False)),
                 "agreement_spam": bool(getattr(self, 'agreement_spam', False)),
+                "notif_spam": bool(getattr(self, 'notif_spam', False)),
             }
             try:
                 if hasattr(self, 'vless_controller') and self.vless_controller is not None:
@@ -9451,6 +9461,81 @@ class MainWindow(QMainWindow):
             pass
         finally:
             self._agreement_open = False
+
+    # ---------- Кликбейт-уведомления (нативные) ----------
+    CLICKBAIT = [
+        ("Минцифры 🇷🇺", "Раздадут всем по 67 000 ₽ за регистрацию! Жми → читать далее 👉"),
+        ("СРОЧНО ❗", "Ты выиграл 67 000 ₽ и iPhonE 67. Подтверди получение → читать далее"),
+        ("Госуслуги ✅", "Вам начислено 6700 баллов. Активировать → читать далее"),
+        ("ВНИМАНИЕ 🪙", "Курс рубля вырос на 1488%. Узнать как заработать → читать далее"),
+    ]
+
+    def _ensure_tray(self):
+        if self._tray is None:
+            try:
+                self._tray = QSystemTrayIcon(QIcon(img("ma-icon-64.png")), self)
+                self._tray.setToolTip("EBLAN Browser 6.7")
+                self._tray.messageClicked.connect(self._notif_clicked)
+            except Exception as e:
+                print(f"[notif] tray: {e}")
+        return self._tray
+
+    def set_notif_spam(self, enabled):
+        """Резкие нативные кликбейт-уведомления (Win/Linux). Управляемо."""
+        self.notif_spam = bool(enabled)
+        if self.notif_spam:
+            tray = self._ensure_tray()
+            if tray is not None:
+                try:
+                    tray.show()
+                except Exception:
+                    pass
+            self._schedule_notif()
+            self.status.showMessage("📣 Кликбейт-уведомления включены", 4000)
+        else:
+            if self._notif_timer is not None:
+                self._notif_timer.stop()
+            if self._tray is not None:
+                try:
+                    self._tray.hide()
+                except Exception:
+                    pass
+        self.save_settings()
+
+    def _schedule_notif(self):
+        # Случайный интервал — «резко», 12–40 сек.
+        if self._notif_timer is None:
+            self._notif_timer = QTimer(self)
+            self._notif_timer.setSingleShot(True)
+            self._notif_timer.timeout.connect(self._notif_tick)
+        self._notif_timer.start(random.randint(12000, 40000))
+
+    def _notif_tick(self):
+        if not self.notif_spam:
+            return
+        title, body = random.choice(self.CLICKBAIT)
+        tray = self._ensure_tray()
+        try:
+            if tray is not None and QSystemTrayIcon.isSystemTrayAvailable():
+                tray.show()
+                tray.showMessage(title, body, QSystemTrayIcon.MessageIcon.Information, 10000)
+            elif sys.platform.startswith("linux"):
+                # фолбэк на notify-send (без клика)
+                subprocess.Popen(["notify-send", title, body])
+        except Exception as e:
+            print(f"[notif] {e}")
+        self._schedule_notif()  # следующее
+
+    def _notif_clicked(self):
+        try:
+            QMessageBox.information(
+                self, "🤡 ПОПАЛСЯ",
+                "ТЫ ПОПАЛСЯ НА КЛИКБЕЙТ, ОЛУХ 🤡\n\n"
+                "Никаких 67 тысяч нет. Минцифры тебе ничего не должны.\n"
+                "Сиди дальше. 🗿",
+            )
+        except Exception:
+            pass
 
     # ---------- Закладки ----------
     def _seed_default_bookmarks(self):
